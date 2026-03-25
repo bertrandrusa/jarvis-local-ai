@@ -1,10 +1,6 @@
-# 🤖 A.D.A - Pocket AI
+# 🤖 JARVIS 
 
-<p align="center">
-  <img src="gui/assets/logo.png" alt="A.D.A Logo" width="120" height="120">
-</p>
-
-**A.D.A** (Advanced Digital Assistant) is a **fully local, privacy-focused AI assistant** for Windows. It combines a beautiful modern GUI with powerful voice control capabilities—all running entirely on YOUR computer with no cloud dependency.
+ A **fully local, privacy-focused AI assistant** for Windows. It combines a beautiful modern GUI with powerful voice control capabilities—all running entirely on YOUR computer with no cloud dependency.
 
 > 🔒 **Your data stays on your machine.** No API keys required for core functionality. No subscriptions. No data collection.
 
