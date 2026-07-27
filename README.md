@@ -15,6 +15,25 @@
   <img src="https://img.shields.io/badge/AI-Local--first-2ea44f" alt="Local-first AI">
 </p>
 
+<p align="center">
+  <a href="https://jarvis-cloud-demo.rusanganbertrand.chatgpt.site"><strong>Launch the cloud demo</strong></a>
+  ·
+  <a href="https://github.com/bertrandrusa/jarvis-local-ai">Explore the source</a>
+</p>
+
+## Cloud demonstration
+
+The public [JARVIS Cloud Demo](https://jarvis-cloud-demo.rusanganbertrand.chatgpt.site) lets recruiters and visitors explore
+the assistant without installing Python, Ollama, models, or desktop dependencies.
+It demonstrates contextual chat, browser-supported voice input and output,
+persistent demo conversations, planning, briefings, smart-home workflows,
+system telemetry, and browser-agent concepts.
+
+Hardware-dependent actions are clearly simulated in the public demo. The Python
+desktop application in this repository remains the full local implementation
+for Ollama inference, Piper speech, SQLite storage, Kasa devices, and Playwright
+automation.
+
 ## Overview
 
 JARVIS is a modular desktop assistant that runs its core AI workflow locally
