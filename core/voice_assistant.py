@@ -26,6 +26,7 @@ from config import (
 
 from core.stt import STTListener
 from core.llm import http_session
+from core.ollama import ollama_api_url, trim_messages
 from core.tts import tts, SentenceBuffer
 from core.function_executor import executor as function_executor
 
@@ -138,8 +139,9 @@ class VoiceAssistant(QObject):
         try:
             # 🔍 OPTIONAL: detect web search intent (simple, fast)
             if user_text.startswith("search") or "search for" in user_text:
-                result = function_executor.execute("web_search", {"query": user_text})
-                context = result.get("message", "")
+                query = user_text.replace("search for", "", 1).strip()
+                result = function_executor.execute("web_search", {"query": query})
+                context = json.dumps(result.get("data", {}), ensure_ascii=False)
                 self._generate_response(f"{context}\n\nUser: {user_text}")
             else:
                 self._generate_response(user_text)
@@ -156,8 +158,7 @@ class VoiceAssistant(QObject):
     def _generate_response(self, prompt: str):
         try:
             # Trim history
-            if len(self.messages) > MAX_HISTORY:
-                self.messages = [self.messages[0]] + self.messages[-(MAX_HISTORY-1):]
+            self.messages = trim_messages(self.messages, MAX_HISTORY)
 
             self.messages.append({"role": "user", "content": prompt})
 
@@ -171,7 +172,12 @@ class VoiceAssistant(QObject):
             sentence_buffer = SentenceBuffer()
             full_response = ""
 
-            with http_session.post(f"{OLLAMA_URL}/chat", json=payload, stream=True) as r:
+            with http_session.post(
+                ollama_api_url(OLLAMA_URL, "chat"),
+                json=payload,
+                stream=True,
+                timeout=(5, 180),
+            ) as r:
                 r.raise_for_status()
 
                 for line in r.iter_lines():

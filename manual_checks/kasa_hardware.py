@@ -26,11 +26,11 @@ async def run_real_test():
         return
 
     print(f"\nSUCCESS: Found {len(devices)} devices:")
-    for d in devices:
+    for d in devices.values():
         print(f"  - [{d['alias']}] IP: {d['ip']} Model: {d['model']} On: {d['is_on']}")
 
     # 2. Test Control on First Device
-    target = devices[0]
+    target = next(iter(devices.values()))
     target_ip = target['ip']
     target_alias = target['alias']
     target_obj = target['obj'] # The actual python-kasa SmartDevice object

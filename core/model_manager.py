@@ -5,6 +5,7 @@ Model Manager - Utilities for loading/unloading Ollama models.
 import requests
 import threading
 from config import OLLAMA_URL, GRAY, RESET
+from core.ollama import ollama_api_url
 
 
 def sync_unload_model(model_name: str):
@@ -14,7 +15,7 @@ def sync_unload_model(model_name: str):
     try:
         # Send a request with keep_alive=0 to unload
         response = requests.post(
-            f"{OLLAMA_URL}/generate",
+            ollama_api_url(OLLAMA_URL, "generate"),
             json={
                 "model": model_name,
                 "prompt": "",
@@ -42,7 +43,7 @@ def unload_model(model_name: str):
 def unload_all_models(sync: bool = False):
     """Unload all running models in Ollama."""
     try:
-        response = requests.get(f"{OLLAMA_URL}/ps", timeout=2)
+        response = requests.get(ollama_api_url(OLLAMA_URL, "ps"), timeout=2)
         if response.status_code == 200:
             data = response.json()
             models = data.get("models", [])
@@ -60,7 +61,7 @@ def unload_all_models(sync: bool = False):
 def get_running_models() -> list:
     """Get list of currently running model names."""
     try:
-        response = requests.get(f"{OLLAMA_URL}/ps", timeout=2)
+        response = requests.get(ollama_api_url(OLLAMA_URL, "ps"), timeout=2)
         if response.status_code == 200:
             data = response.json()
             return [m.get("name", "") for m in data.get("models", [])]

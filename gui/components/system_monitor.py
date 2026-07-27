@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QFrame
 from PySide6.QtCore import QTimer, QObject, Signal, QThread
 
 from config import OLLAMA_URL
+from core.ollama import ollama_api_url
 
 # Try to import pynvml for GPU monitoring
 try:
@@ -58,7 +59,7 @@ class MonitorWorker(QObject):
                 stats["gpu"] = None
 
             try:
-                response = requests.get(f"{OLLAMA_URL}/ps", timeout=2)
+                response = requests.get(ollama_api_url(OLLAMA_URL, "ps"), timeout=2)
                 if response.status_code == 200:
                     data = response.json()
                     models = data.get("models", [])

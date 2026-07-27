@@ -1,7 +1,4 @@
-"""
-Function Executor - Minimal executor for fast Pocket AI runtime.
-Only keeps lightweight tool execution.
-"""
+"""Lightweight tool execution used by JARVIS."""
 
 from typing import Dict, Any
 

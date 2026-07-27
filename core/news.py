@@ -3,6 +3,7 @@ import requests
 import datetime
 from duckduckgo_search import DDGS
 from config import OLLAMA_URL, RESPONDER_MODEL
+from core.ollama import ollama_api_url
 
 class NewsManager:
     """Manages fetching and curating news for the Briefing dashboard."""
@@ -123,7 +124,7 @@ Do NOT add any markdown or text. Just the JSON array.
         
         try:
             response = requests.post(
-                f"{OLLAMA_URL}/chat",
+                ollama_api_url(OLLAMA_URL, "chat"),
                 json={
                     "model": RESPONDER_MODEL,
                     "messages": [{"role": "user", "content": prompt}],

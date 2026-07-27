@@ -1,10 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# Environments and build output
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+# Local runtime data
+data/*.db
+*.db
+*.log
 logs/
+install_log.txt
+import_error.txt
+
+# Downloaded and fine-tuned models
 functiongemma-finetuned/
 functiongemma-lora/
 functiongemma-merged/
 merged_model_adapter/
 functiongemma-270m-ft/
 merged_model/
-__pycache__/
-chat_history.db
-realtimesst.log
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

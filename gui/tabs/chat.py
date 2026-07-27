@@ -180,7 +180,7 @@ class ChatTab(QWidget):
              self.user_input.setFocus()
 
     def add_message_bubble(self, role: str, text: str, is_thinking: bool = False):
-        """Add a bubble."""
+        """Add and return a message bubble."""
         # Note: MessageBubble might need updates to look good on transparent background
         bubble = MessageBubble(role, text, is_thinking)
         
@@ -201,6 +201,7 @@ class ChatTab(QWidget):
         self.chat_container_layout.insertWidget(count - 1, wrapper)
         
         QTimer.singleShot(50, self.scroll_to_bottom)
+        return bubble
 
     def add_streaming_widgets(self, thinking_ui, search_indicator, response_bubble):
         """Add streaming widgets."""

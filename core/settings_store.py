@@ -1,7 +1,4 @@
-"""
-Centralized settings storage with persistence.
-Saves settings to ~/.pocket_ai/settings.json
-"""
+"""Centralized JARVIS settings storage with persistence."""
 
 import json
 import threading
@@ -51,7 +48,7 @@ class SettingsStore(QObject):
         super().__init__()
         self._lock = threading.RLock()
         self._settings: Dict[str, Any] = {}
-        self._settings_dir = Path.home() / ".pocket_ai"
+        self._settings_dir = Path.home() / ".jarvis_local_ai"
         self._settings_file = self._settings_dir / "settings.json"
         
         self._load()
