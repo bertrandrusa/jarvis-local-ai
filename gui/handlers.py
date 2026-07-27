@@ -1,167 +1,239 @@
-from PySide6.QtCore import QObject, Signal, QThread, QTimer
+"""Controllers for chat generation, local history, and session management."""
+
 import json
-import re
+import threading
 
-from config import RESPONDER_MODEL, OLLAMA_URL, MAX_HISTORY
+from PySide6.QtCore import QObject, QThread, Signal
 
-# =========================
-# LAZY IMPORTS (CRITICAL)
-# =========================
-http_session = None
-tts = None
-SentenceBuffer = None
-history_manager = None
-ensure_exclusive_qwen = None
-ensure_qwen_loaded = None
-mark_qwen_used = None
-app_settings = None
-function_executor = None
+from config import MAX_HISTORY, RESPONDER_MODEL
+from core.ollama import ollama_api_url, trim_messages
+
+SYSTEM_MESSAGE = {
+    "role": "system",
+    "content": (
+        "You are JARVIS, a concise local desktop assistant. "
+        "Give clear, useful answers and say when you are uncertain."
+    ),
+}
 
 
-def lazy_imports():
-    global http_session, tts, SentenceBuffer, history_manager
-    global ensure_exclusive_qwen, ensure_qwen_loaded, mark_qwen_used
-    global app_settings, function_executor
-
-    if http_session is None:
-        from core.llm import http_session as _http
-        from core.tts import tts as _tts, SentenceBuffer as _sb
-        from core.history import history_manager as _hm
-        from core.model_manager import ensure_exclusive_qwen as _emq
-        from core.model_persistence import ensure_qwen_loaded as _eql, mark_qwen_used as _mqu
-        from core.settings_store import settings as _settings
-        from core.function_executor import executor as _exec
-
-        http_session = _http
-        tts = _tts
-        SentenceBuffer = _sb
-        history_manager = _hm
-        ensure_exclusive_qwen = _emq
-        ensure_qwen_loaded = _eql
-        mark_qwen_used = _mqu
-        app_settings = _settings
-        function_executor = _exec
-
-
-# =========================
-# WORKER
-# =========================
 class ChatWorker(QObject):
-    thought_chunk = Signal(str)
+    """Stream one Ollama response without blocking the Qt event loop."""
+
     response_chunk = Signal(str)
-    think_start = Signal(bool)
-    think_end = Signal()
-    simple_response = Signal(str)
+    completed = Signal(str)
     error = Signal(str)
     status = Signal(str)
     done = Signal()
 
-    def __init__(self, user_text, messages, is_tts_enabled, session_id, stop_event):
+    def __init__(self, messages, is_tts_enabled, stop_event):
         super().__init__()
-        self.user_text = user_text
         self.messages = messages
         self.is_tts_enabled = is_tts_enabled
-        self.session_id = session_id
         self.stop_event = stop_event
 
     def process(self):
         try:
-            lazy_imports()
+            from core.llm import http_session
+            from core.settings_store import settings
+            from core.tts import SentenceBuffer, tts
 
+            model = settings.get("models.chat", RESPONDER_MODEL)
+            base_url = settings.get("ollama_url", "http://localhost:11434")
             payload = {
-                "model": RESPONDER_MODEL,
-                "messages": self.messages + [{"role": "user", "content": self.user_text}],
-                "stream": True
+                "model": model,
+                "messages": self.messages,
+                "stream": True,
+                "keep_alive": "3m",
             }
 
-            buffer = SentenceBuffer()
-            full = ""
+            sentence_buffer = SentenceBuffer()
+            full_response = ""
+            self.status.emit(f"Generating locally with {model}…")
 
-            with http_session.post(f"{OLLAMA_URL}/api/chat", json=payload, stream=True) as r:
-                for line in r.iter_lines():
+            with http_session.post(
+                ollama_api_url(base_url, "chat"),
+                json=payload,
+                stream=True,
+                timeout=(5, 180),
+            ) as response:
+                response.raise_for_status()
+
+                for line in response.iter_lines():
                     if self.stop_event.is_set():
+                        self.status.emit("Generation stopped")
                         break
                     if not line:
                         continue
 
-                    data = json.loads(line.decode())
-                    msg = data.get("message", {})
+                    data = json.loads(line.decode("utf-8"))
+                    content = data.get("message", {}).get("content", "")
+                    if not content:
+                        continue
 
-                    if "content" in msg:
-                        content = msg["content"]
-                        full += content
-                        self.response_chunk.emit(content)
+                    full_response += content
+                    self.response_chunk.emit(content)
 
-                        if self.is_tts_enabled:
-                            for s in buffer.add(content):
-                                tts.queue_sentence(s)
+                    if self.is_tts_enabled:
+                        for sentence in sentence_buffer.add(content):
+                            tts.queue_sentence(sentence)
 
-            rem = buffer.flush()
-            if rem and self.is_tts_enabled:
-                tts.queue_sentence(rem)
+            remainder = sentence_buffer.flush()
+            if remainder and self.is_tts_enabled and not self.stop_event.is_set():
+                tts.queue_sentence(remainder)
 
-            self.messages.append({"role": "assistant", "content": full})
+            if full_response:
+                self.completed.emit(full_response)
+        except Exception as exc:  # noqa: BLE001 - report worker failures to the UI
+            self.error.emit(str(exc))
+        finally:
             self.done.emit()
 
-        except Exception as e:
-            self.error.emit(str(e))
 
-
-# =========================
-# HANDLERS
-# =========================
 class ChatHandlers(QObject):
+    """Coordinate the chat UI, Ollama worker, and SQLite history."""
+
     def __init__(self, main_window):
         super().__init__(main_window)
-
-        lazy_imports()  # 🔥 CRITICAL
+        from core.history import history_manager
 
         self.main_window = main_window
-        self.messages = [
-            {"role": "system", "content": "You are a fast, concise assistant."}
-        ]
-
+        self.history_manager = history_manager
+        self.current_session_id = None
         self.is_tts_enabled = False
+
         self._thread = None
         self._worker = None
         self._stop_event = None
+        self._response_bubble = None
+
+    def initialize_sessions(self):
+        sessions = self.history_manager.get_sessions()
+        if sessions:
+            self.select_session(sessions[0]["id"])
+        else:
+            self.new_chat()
+
+    def new_chat(self):
+        self.current_session_id = self.history_manager.create_session()
+        self.main_window.clear_chat_display()
+        self.main_window.chat_tab.refresh_sidebar(self.current_session_id)
+        self.main_window.set_status("Ready")
+
+    def select_session(self, session_id: str):
+        self.current_session_id = session_id
+        self.main_window.clear_chat_display()
+        for message in self.history_manager.get_messages(session_id):
+            self.main_window.add_message_bubble(
+                message["role"],
+                message["content"],
+            )
+        self.main_window.chat_tab.refresh_sidebar(session_id)
+        self.main_window.set_status("Ready")
+
+    def toggle_session_pin(self, session_id: str):
+        self.history_manager.toggle_pin(session_id)
+        self.main_window.chat_tab.refresh_sidebar(self.current_session_id)
+
+    def rename_session(self, session_id: str, title: str):
+        self.history_manager.update_session_title(session_id, title)
+        self.main_window.chat_tab.refresh_sidebar(self.current_session_id)
+
+    def delete_session(self, session_id: str):
+        self.history_manager.delete_session(session_id)
+        if session_id == self.current_session_id:
+            sessions = self.history_manager.get_sessions()
+            if sessions:
+                self.select_session(sessions[0]["id"])
+            else:
+                self.new_chat()
+        else:
+            self.main_window.chat_tab.refresh_sidebar(self.current_session_id)
 
     def send_message(self, text: str):
-        lazy_imports()
+        from core.settings_store import settings
 
         text = text.strip()
-        if not text:
+        if not text or self._thread:
             return
+        if not self.current_session_id:
+            self.new_chat()
+
+        existing_messages = self.history_manager.get_messages(self.current_session_id)
+        self.history_manager.add_message(self.current_session_id, "user", text)
+        if not existing_messages:
+            title = text if len(text) <= 48 else f"{text[:45]}…"
+            self.history_manager.update_session_title(self.current_session_id, title)
 
         self.main_window.add_message_bubble("user", text)
+        self.main_window.chat_tab.clear_input()
+        self.main_window.chat_tab.set_generating_state(True)
+        self.main_window.chat_tab.refresh_sidebar(self.current_session_id)
+        self._response_bubble = self.main_window.add_message_bubble("assistant", "")
 
-        import threading
+        max_history = int(settings.get("general.max_history", MAX_HISTORY))
+        conversation = self.history_manager.get_messages(self.current_session_id)
+        messages = trim_messages([SYSTEM_MESSAGE, *conversation], max_history + 1)
+
         self._stop_event = threading.Event()
-
-        self._thread = QThread()
+        self._thread = QThread(self)
         self._worker = ChatWorker(
-            text,
-            self.messages.copy(),
-            self.is_tts_enabled,
-            None,
-            self._stop_event
+            messages=messages,
+            is_tts_enabled=self.is_tts_enabled,
+            stop_event=self._stop_event,
         )
-
         self._worker.moveToThread(self._thread)
 
         self._thread.started.connect(self._worker.process)
-        self._worker.response_chunk.connect(
-            lambda t: self.main_window.add_message_bubble("assistant", t)
-        )
+        self._worker.response_chunk.connect(self._append_response)
+        self._worker.completed.connect(self._save_response)
+        self._worker.error.connect(self._show_error)
+        self._worker.status.connect(self.main_window.set_status)
         self._worker.done.connect(self._thread.quit)
-
+        self._worker.done.connect(self._worker.deleteLater)
+        self._thread.finished.connect(self._finish_generation)
+        self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
+
+    def _append_response(self, text: str):
+        if self._response_bubble:
+            self._response_bubble.append_text(text)
+            self.main_window.chat_tab.scroll_to_bottom()
+
+    def _save_response(self, text: str):
+        if self.current_session_id and text:
+            self.history_manager.add_message(
+                self.current_session_id,
+                "assistant",
+                text,
+            )
+            if self._response_bubble:
+                self._response_bubble.set_text(text)
+
+    def _show_error(self, error: str):
+        message = (
+            "JARVIS could not reach Ollama. Confirm that Ollama is running "
+            f"and that the configured model is installed.\n\nDetails: {error}"
+        )
+        if self._response_bubble:
+            self._response_bubble.set_text(message)
+        self.main_window.set_status("Connection error")
+
+    def _finish_generation(self):
+        self.main_window.chat_tab.set_generating_state(False)
+        if self.main_window.chat_tab.status_label.text() != "Connection error":
+            self.main_window.set_status("Ready")
+        self._thread = None
+        self._worker = None
+        self._stop_event = None
+        self._response_bubble = None
 
     def stop_generation(self):
         if self._stop_event:
             self._stop_event.set()
 
     def toggle_tts(self, enabled: bool):
-        lazy_imports()
+        from core.tts import tts
+
         self.is_tts_enabled = enabled
         tts.toggle(enabled)

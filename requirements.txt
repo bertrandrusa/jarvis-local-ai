@@ -1,5 +1,5 @@
 # =====================================================
-# Pocket AI (A.D.A) - Python Dependencies
+# JARVIS Local AI - Python Dependencies
 # =====================================================
 # 
 # Install all dependencies with:
@@ -69,7 +69,4 @@ huggingface-hub>=0.36.0        # Download models from Hugging Face
 # SQLite is included with Python - no additional packages needed
 
 # -----------------------------------------------------
-# Development (Optional)
-# -----------------------------------------------------
-# pytest>=7.0.0                 # Testing framework
-# black>=23.0.0                 # Code formatting
+# Tests use Python's built-in unittest framework.

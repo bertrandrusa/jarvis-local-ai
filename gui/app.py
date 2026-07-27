@@ -1,95 +1,92 @@
-"""
-Minimal App - Fast, Clean, No Extra Features
-"""
+"""Main JARVIS desktop window and feature navigation."""
 
 import threading
-from qfluentwidgets import (
-    FluentWindow, NavigationItemPosition, FluentIcon as FIF
-)
+
+from qfluentwidgets import FluentIcon as FIF
+from qfluentwidgets import FluentWindow
 
 from config import VOICE_ASSISTANT_ENABLED
-from gui.styles import AURA_STYLESHEET 
+from gui.styles import AURA_STYLESHEET
 
 
 class MainWindow(FluentWindow):
     def __init__(self):
         super().__init__()
-        print("A: window base init")
-
-        self.setWindowTitle("JARVIS (Lite)")
-        print("B: title set")
-
-        self.resize(1100, 750)
-        print("C: resize done")
-
+        self.setWindowTitle("JARVIS Local AI")
+        self.resize(1280, 820)
         self.setStyleSheet(AURA_STYLESHEET)
-        print("D: stylesheet applied")
 
-        # STEP BY STEP LOAD
-        print("E: importing handlers")
         from gui.handlers import ChatHandlers
-
-        print("F: creating handlers")
-        self.handlers = ChatHandlers(self)
-
-        print("G: importing tabs")
+        from gui.tabs.briefing import BriefingView
+        from gui.tabs.browser import BrowserTab
         from gui.tabs.chat import ChatTab
+        from gui.tabs.dashboard import DashboardView
+        from gui.tabs.home_automation import HomeAutomationTab
+        from gui.tabs.planner import PlannerTab
         from gui.tabs.settings import SettingsTab
 
-        print("H: creating chat tab")
+        self.dashboard_tab = DashboardView()
         self.chat_tab = ChatTab()
-
-        print("I: creating settings tab")
+        self.planner_tab = PlannerTab()
+        self.briefing_tab = BriefingView()
+        self.home_tab = HomeAutomationTab()
+        self.browser_tab = BrowserTab()
         self.settings_tab = SettingsTab()
 
-        print("J: adding UI")
+        self.handlers = ChatHandlers(self)
+
+        self.addSubInterface(self.dashboard_tab, FIF.HOME, "Dashboard")
         self.addSubInterface(self.chat_tab, FIF.CHAT, "Chat")
+        self.addSubInterface(self.planner_tab, FIF.CALENDAR, "Planner")
+        self.addSubInterface(self.briefing_tab, FIF.DOCUMENT, "Briefing")
+        self.addSubInterface(self.home_tab, FIF.IOT, "Smart Home")
+        self.addSubInterface(self.browser_tab, FIF.GLOBE, "Browser Agent")
         self.addSubInterface(self.settings_tab, FIF.SETTING, "Settings")
 
-        print("K: connect signals")
         self._connect_signals()
-
-        print("L: init voice")
+        self.handlers.initialize_sessions()
         self._init_voice_assistant()
 
-    print("M: DONE INIT")
-    # =========================
-    # VOICE ASSISTANT
-    # =========================
     def _init_voice_assistant(self):
         if not VOICE_ASSISTANT_ENABLED:
             return
 
-        def init_va():
-            # 🔥 lazy import
-            from core.voice_assistant import voice_assistant
+        def initialize():
             from core.tts import tts
+            from core.voice_assistant import voice_assistant
 
             if voice_assistant.initialize():
                 tts.toggle(True)
                 voice_assistant.start()
 
-        threading.Thread(target=init_va, daemon=True).start()
+        threading.Thread(target=initialize, daemon=True).start()
 
-    # =========================
-    # SIGNALS
-    # =========================
     def _connect_signals(self):
-        self.chat_tab.send_message_requested.connect(self._on_send)
+        self.chat_tab.send_message_requested.connect(self.handlers.send_message)
         self.chat_tab.stop_generation_requested.connect(self.handlers.stop_generation)
         self.chat_tab.tts_toggled.connect(self.handlers.toggle_tts)
+        self.chat_tab.new_chat_requested.connect(self.handlers.new_chat)
+        self.chat_tab.session_selected.connect(self.handlers.select_session)
+        self.chat_tab.session_pin_requested.connect(self.handlers.toggle_session_pin)
+        self.chat_tab.session_rename_requested.connect(self.handlers.rename_session)
+        self.chat_tab.session_delete_requested.connect(self.handlers.delete_session)
+        self.dashboard_tab.navigate_to.connect(self._navigate_from_dashboard)
 
-    def _on_send(self, text):
-        self.handlers.send_message(text)
+    def _navigate_from_dashboard(self, route_key: str):
+        destinations = {
+            "plannerInterface": self.planner_tab,
+            "homeInterface": self.home_tab,
+            "briefingInterface": self.briefing_tab,
+        }
+        destination = destinations.get(route_key)
+        if destination:
+            self.switchTo(destination)
 
-    # =========================
-    # UI HELPERS
-    # =========================
     def set_status(self, text):
         self.chat_tab.set_status(text)
 
     def add_message_bubble(self, role, text, is_thinking=False):
-        self.chat_tab.add_message_bubble(role, text, is_thinking)
+        return self.chat_tab.add_message_bubble(role, text, is_thinking)
 
     def clear_chat_display(self):
         self.chat_tab.clear_chat_display()

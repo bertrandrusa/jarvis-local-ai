@@ -1,11 +1,9 @@
-"""
-Centralized configuration for Pocket AI.
-"""
+"""Centralized defaults for JARVIS Local AI."""
 
 # --- Model Configuration ---
 # Use a lighter Ollama model for faster voice responses and lower GPU use
-RESPONDER_MODEL = "phi3:mini"
-OLLAMA_URL = "http://localhost:11434/api"
+RESPONDER_MODEL = "qwen3:1.7b"
+OLLAMA_URL = "http://localhost:11434"
 MAX_HISTORY = 10
 
 # Router disabled for performance; use simple handling instead

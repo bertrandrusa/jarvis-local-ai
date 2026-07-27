@@ -6,6 +6,7 @@ Handles direct communication with Ollama.
 import requests
 
 from config import RESPONDER_MODEL, OLLAMA_URL, GRAY, RESET
+from core.ollama import ollama_api_url
 
 # Persistent session (VERY IMPORTANT for speed)
 http_session = requests.Session()
@@ -37,7 +38,7 @@ def chat(messages, stream=True, max_tokens=120):
         }
 
         response = http_session.post(
-            f"{OLLAMA_URL}/chat",
+            ollama_api_url(OLLAMA_URL, "chat"),
             json=payload,
             stream=stream,
             timeout=60
@@ -72,7 +73,7 @@ def quick_chat(prompt: str):
         }
 
         response = http_session.post(
-            f"{OLLAMA_URL}/generate",
+            ollama_api_url(OLLAMA_URL, "generate"),
             json=payload,
             timeout=30
         )
@@ -99,7 +100,7 @@ def preload_model():
         print(f"{GRAY}[LLM] Preloading model...{RESET}")
 
         http_session.post(
-            f"{OLLAMA_URL}/generate",
+            ollama_api_url(OLLAMA_URL, "generate"),
             json={
                 "model": RESPONDER_MODEL,
                 "prompt": "hi",

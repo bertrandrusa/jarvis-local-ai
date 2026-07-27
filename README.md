@@ -1,440 +1,237 @@
-# 🤖 JARVIS 
+# JARVIS Local AI
 
- A **fully local, privacy-focused AI assistant** for Windows. It combines a beautiful modern GUI with powerful voice control capabilities—all running entirely on YOUR computer with no cloud dependency.
+<p align="center">
+  <strong>A privacy-focused desktop AI assistant for Windows.</strong><br>
+  Local chat, voice interaction, planning, smart-home control, live briefings,
+  and browser automation in one Python application.
+</p>
 
-> 🔒 **Your data stays on your machine.** No API keys required for core functionality. No subscriptions. No data collection.
+<p align="center">
+  <a href="https://github.com/bertrandrusa/jarvis-local-ai/actions/workflows/ci.yml">
+    <img src="https://github.com/bertrandrusa/jarvis-local-ai/actions/workflows/ci.yml/badge.svg" alt="CI status">
+  </a>
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white" alt="Windows">
+  <img src="https://img.shields.io/badge/AI-Local--first-2ea44f" alt="Local-first AI">
+</p>
 
----
+## Overview
 
-## ✨ Key Features
+JARVIS is a modular desktop assistant that runs its core AI workflow locally
+through [Ollama](https://ollama.com/). It combines a Fluent Design interface
+with streaming LLM responses, wake-word speech recognition, local
+text-to-speech, persistent chat history, productivity tools, TP-Link Kasa
+device control, news and weather data, and an experimental vision-powered
+browser agent.
 
-| Feature | Description |
-|---------|-------------|
-| 🎤 **Voice Control** | Wake word detection ("Jarvis") with natural language commands |
-| 💬 **AI Chat** | Interactive chat with local LLMs via Ollama with streaming responses |
-| 🏠 **Smart Home** | Control TP-Link Kasa smart lights and plugs from the app |
-| 📅 **Planner** | Manage calendar events, alarms, and timers |
-| 📰 **Daily Briefing** | AI-curated news from Technology, Science, and Top Stories |
-| 🌤️ **Weather** | Current weather and hourly forecast on your dashboard |
-| 🔍 **Web Search** | Search the web through voice or chat commands |
-| 🖥️ **System Monitor** | Real-time CPU and memory usage in the title bar |
+The project demonstrates practical work across desktop application
+development, local model integration, asynchronous processing, REST APIs,
+SQLite persistence, browser automation, smart-home networking, and
+AI-assisted function routing.
 
----
+## Highlights
 
-## 📸 Screenshots
+| Area | Implementation |
+| --- | --- |
+| Local AI chat | Streams responses from a configurable Ollama model without sending chat history to a hosted LLM |
+| Voice assistant | `"Jarvis"` wake word, RealTimeSTT transcription, and Piper speech output |
+| Desktop interface | PySide6 and Fluent Widgets with dashboard, chat, planner, briefing, smart-home, browser, and settings views |
+| Conversation history | Local SQLite sessions with rename, pin, delete, and automatic titles |
+| Smart-home control | Discovers and controls supported TP-Link Kasa bulbs, plugs, and light strips on the local network |
+| Productivity | Local tasks, calendar events, alarms, and focus timers |
+| Information modules | Open-Meteo weather data and DuckDuckGo-powered news/search |
+| Browser agent | Experimental Playwright controller driven by a local vision-language model |
+| Quality controls | Core unit tests, Python compilation checks, and a multi-version GitHub Actions workflow |
 
-*The application features a sleek Windows 11 Fluent Design aesthetic with dark mode support.*
+## Architecture
 
----
-
-## 📋 Prerequisites
-
-Before you begin, make sure you have:
-
-### Required Software
-
-| Software | Purpose | Download |
-|----------|---------|----------|
-| **Miniconda** | Python environment manager | [miniconda.io](https://docs.anaconda.com/miniconda/) |
-| **Ollama** | Local AI model server | [ollama.com](https://ollama.com/download) |
-| **NVIDIA GPU** (Recommended) | Faster AI inference | GPU with 4GB+ VRAM |
-
-### Hardware Recommendations
-
-- **Minimum**: 8GB RAM, any modern CPU
-- **Recommended**: 16GB RAM, NVIDIA GPU with 6GB+ VRAM
-- **Storage**: ~5GB for models and voice data
-
----
-
-## 🚀 Quick Start Guide
-
-Follow these steps to get A.D.A running on your system.
-
-### Step 1: Install Miniconda
-
-1. Download from [miniconda.io](https://docs.anaconda.com/miniconda/)
-2. Run the installer (use default options)
-3. Open **Anaconda Prompt** (Windows) or your terminal (macOS/Linux)
-
-### Step 2: Install Ollama
-
-1. Download and install from [ollama.com/download](https://ollama.com/download)
-2. Run the installer (Ollama will start automatically as a background service)
-
-> ✅ **Ollama runs in the background** - no need to start it manually after installation.
-
-### Step 3: Download an AI Model
-
-Open a terminal and pull your preferred model. You can choose from:
-
-**🔹 Option A: Qwen3 (Recommended for most users)**
-```bash
-# Fast and efficient - great balance of speed and quality
-ollama pull qwen3:1.7b
+```mermaid
+flowchart TD
+    U["Voice or text input"] --> UI["PySide6 desktop UI"]
+    UI --> AI["Ollama local models"]
+    UI --> DB["SQLite history and planner"]
+    U --> V["RealTimeSTT and Piper TTS"]
+    V --> AI
+    UI --> M["Optional modules"]
+    M --> S["Kasa, Open-Meteo, DuckDuckGo, Playwright"]
 ```
 
-**🔹 Option B: DeepSeek R1 (Better reasoning)**
-```bash
-# Stronger reasoning capabilities - slightly slower
-ollama pull deepseek-r1:1.5b
+### Main components
+
+```text
+jarvis-local-ai/
+├── main.py                     # Application entry point
+├── config.py                   # Runtime defaults
+├── core/
+│   ├── ollama.py               # Ollama URL and history helpers
+│   ├── llm.py                  # Local model communication
+│   ├── voice_assistant.py      # Speech-to-response pipeline
+│   ├── stt.py                  # Wake word and transcription
+│   ├── tts.py                  # Streaming Piper speech output
+│   ├── history.py              # SQLite chat sessions
+│   ├── tasks.py                # Tasks and alarms
+│   ├── calendar_manager.py     # Local calendar storage
+│   ├── kasa_control.py         # Smart-device discovery and control
+│   └── agent/                  # Playwright browser agent
+├── gui/
+│   ├── app.py                  # Window and navigation
+│   ├── handlers.py             # Chat and session controller
+│   ├── tabs/                   # Feature views
+│   └── components/             # Reusable Fluent UI widgets
+├── tests/                      # Dependency-light core tests
+└── .github/workflows/ci.yml    # Continuous integration
 ```
 
-> 💡 **Tip**: You can switch models anytime in `config.py` by changing `RESPONDER_MODEL`.
+## Technology stack
 
-Verify your model is installed:
-```bash
-ollama list
+- **Application:** Python, PySide6, PySide6-Fluent-Widgets
+- **Local AI:** Ollama, Qwen3, Transformers, optional FunctionGemma router
+- **Speech:** RealTimeSTT, Whisper, Porcupine wake word, Piper TTS
+- **Storage:** SQLite
+- **Automation:** Playwright, Playwright Stealth
+- **Smart home:** python-kasa
+- **Data sources:** Open-Meteo, DuckDuckGo
+- **Testing and delivery:** unittest, GitHub Actions
+
+## Getting started
+
+### Requirements
+
+- Windows 10 or 11
+- Python 3.10+
+- [Ollama](https://ollama.com/download)
+- A microphone for voice features
+- 8 GB RAM minimum; 16 GB recommended
+- An NVIDIA GPU is optional but improves model and transcription speed
+
+### 1. Clone the repository
+
+```powershell
+git clone https://github.com/bertrandrusa/jarvis-local-ai.git
+cd jarvis-local-ai
 ```
 
-### Step 4: Clone & Set Up the Project
+### 2. Create a virtual environment
 
-```bash
-# Clone the repository
-git clone https://github.com/your-username/pocket_ai.git
-cd pocket_ai
-
-# Create a conda environment
-conda create -n ada python=3.11 -y
-
-# Activate the environment
-conda activate ada
-
-# Install dependencies
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-> ⏱️ **Note**: First installation may take 5-10 minutes as PyTorch and other large packages are downloaded.
+### 3. Install the default local model
 
-### Step 5: GPU Setup (NVIDIA Users)
-
-For **significantly faster** AI inference, install PyTorch with CUDA support:
-
-```bash
-# Install PyTorch with CUDA 12.4 support
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+```powershell
+ollama pull qwen3:1.7b
 ```
 
-Verify CUDA is working:
-```bash
-python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+Ollama normally starts in the background after installation. Verify it with:
+
+```powershell
+ollama list
 ```
 
-> 💡 **CPU-only users**: Skip this step—PyTorch will use CPU by default. It's slower but works fine.
+### 4. Run JARVIS
 
-### Step 6: Run the Application
-
-```bash
+```powershell
 python main.py
 ```
 
-🎉 **That's it!** A.D.A will launch with a beautiful GUI.
+Use the Settings view to select another installed Ollama model or change the
+server URL.
 
----
+## Optional setup
 
-## 🎮 GPU Acceleration
+### Browser agent
 
-A.D.A benefits greatly from GPU acceleration. Here's what runs on your GPU:
+The browser agent requires a local vision model and Playwright browser:
 
-| Component | GPU Benefit | Without GPU |
-|-----------|-------------|-------------|
-| **Router Model** | ~50ms inference | ~200ms inference |
-| **Ollama LLM** | Fast streaming responses | Slower, but functional |
-| **Whisper STT** | Real-time transcription | Slight delay |
-
-### CUDA Requirements
-
-- **NVIDIA GPU** with CUDA Compute Capability 5.0+ (GTX 900 series or newer)
-- **CUDA Toolkit**: Bundled with PyTorch—no separate install needed
-- **VRAM**: 4GB minimum, 6GB+ recommended
-
-### Check Your GPU
-
-```bash
-# View GPU info and VRAM
-nvidia-smi
+```powershell
+ollama pull qwen3-vl:4b
+playwright install chromium
 ```
 
----
+Browser automation is experimental. Review an instruction before running it
+against an authenticated or sensitive website.
 
-## 🤖 Automatic Model Downloads
+### NVIDIA acceleration
 
-The following models are **downloaded automatically** on first run—no manual setup required:
+Install the PyTorch build recommended for your installed CUDA version from
+[pytorch.org](https://pytorch.org/get-started/locally/). JARVIS continues to
+work on CPU, but voice transcription and local inference may be slower.
 
-| Model | Purpose | Size | Downloaded From |
-|-------|---------|------|-----------------|
-| **Router Model** | Intent classification | ~500MB | [Hugging Face](https://huggingface.co/nlouis/pocket-ai-router) |
-| **TTS Voice** | Text-to-speech | ~50MB | [Piper Voices](https://huggingface.co/rhasspy/piper-voices) |
-| **STT Model** | Speech-to-text (Whisper) | ~150MB | OpenAI Whisper |
+### Smart-home control
 
-> 📦 **First launch will take a few minutes** while these models download. Subsequent launches are instant.
+Supported Kasa devices must be connected to the same local network as the
+computer. Open **Smart Home** and use **Refresh** to discover available
+devices.
 
----
+## Configuration
 
-## 🎙️ Voice Assistant Setup
+Application preferences are stored locally in:
 
-A.D.A includes Alexa-like voice control with wake word detection.
-
-### How It Works
-
-1. Say **"Jarvis"** to wake the assistant
-2. Speak your command naturally
-3. A.D.A processes your request and responds
-
-### Example Voice Commands
-
-| Command | What It Does |
-|---------|--------------|
-| *"Jarvis, turn on the office lights"* | Controls smart lights |
-| *"Jarvis, set a timer for 10 minutes"* | Creates a countdown timer |
-| *"Jarvis, what's on my schedule today?"* | Reads your calendar |
-| *"Jarvis, search the web for Python tutorials"* | Performs web search |
-| *"Jarvis, add buy groceries to my to-do list"* | Creates a task |
-
-### Voice Configuration
-
-Edit `config.py` to customize:
-
-```python
-# Change wake word (default: "jarvis")
-WAKE_WORD = "jarvis"
-
-# Adjust sensitivity (0.0-1.0, lower = less false positives)
-WAKE_WORD_SENSITIVITY = 0.4
-
-# Enable/disable voice assistant
-VOICE_ASSISTANT_ENABLED = True
+```text
+~/.jarvis_local_ai/settings.json
 ```
 
----
+Important defaults:
 
-## ⚙️ Configuration
+| Setting | Default |
+| --- | --- |
+| Ollama server | `http://localhost:11434` |
+| Chat model | `qwen3:1.7b` |
+| Voice wake word | `jarvis` |
+| STT model | `tiny` |
+| Maximum chat context | 20 messages |
 
-All configuration is centralized in `config.py`:
+## Privacy and network behavior
 
-### AI Models
+JARVIS keeps chat sessions, tasks, calendar entries, alarms, and preferences
+on the local computer. Runtime databases and logs are excluded from Git.
 
-Change the chat model in `config.py`:
+The core chat model runs through the local Ollama server. Some optional
+features require network access:
 
-```python
-# The main chat model (runs on Ollama)
-# Options: "qwen3:1.7b" (fast) or "deepseek-r1:1.5b" (better reasoning)
-RESPONDER_MODEL = "qwen3:1.7b"
+- Open-Meteo for weather
+- DuckDuckGo for news and web search
+- Hugging Face and GitHub for first-run voice/model downloads
+- TP-Link Kasa discovery over the local network
 
-# Ollama server URL (usually no need to change)
-OLLAMA_URL = "http://localhost:11434/api"
+No API key is required for the default chat workflow.
+
+## Testing
+
+The core test suite intentionally avoids GUI, microphone, model, and
+smart-device requirements:
+
+```powershell
+python -m compileall -q core gui tests main.py config.py
+python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-**Model Comparison:**
+GitHub Actions runs these checks on Python 3.10, 3.11, and 3.12 for every pull
+request.
 
-| Model | Speed | Reasoning | Best For |
-|-------|-------|-----------|----------|
-| `qwen3:1.7b` | ⚡ Fast | Good | Daily use, quick responses |
-| `deepseek-r1:1.5b` | Moderate | Excellent | Math, coding, complex questions |
+## Project status
 
-### Text-to-Speech
+JARVIS is an active portfolio project and remains an alpha desktop
+application. Local chat, session history, voice, planning, information, and
+device-control modules are implemented. Hardware-dependent features should be
+validated on the target Windows computer and local network.
 
-```python
-# Voice model (downloads automatically on first run)
-TTS_VOICE_MODEL = "en_GB-northern_english_male-medium"
-```
+Future improvements include:
 
-### Weather Location
+- Packaged Windows installer
+- End-to-end GUI tests
+- Permission controls for browser actions
+- Expanded natural-language tool routing
+- In-app diagnostics for microphones, Ollama, and Kasa devices
 
-The default location is New York City. To change it:
+## Author
 
-1. Open the app
-2. Go to **Settings** tab
-3. Enter your latitude and longitude
+Built by **Bertrand Rusanganwa**, a computer science graduate focused on
+software engineering, cybersecurity, cloud, and infrastructure systems.
 
----
-
-## 🏗️ Project Architecture
-
-```
-pocket_ai/
-├── main.py                 # Application entry point
-├── config.py               # Centralized configuration
-├── requirements.txt        # Python dependencies
-│
-├── core/                   # Backend logic
-│   ├── router.py           # FunctionGemma intent classifier
-│   ├── function_executor.py # Executes routed functions
-│   ├── voice_assistant.py  # Voice pipeline orchestrator
-│   ├── stt.py              # Speech-to-text with wake word
-│   ├── tts.py              # Piper text-to-speech
-│   ├── kasa_control.py     # Smart home device control
-│   ├── weather.py          # Open-Meteo weather API
-│   ├── news.py             # DuckDuckGo news + AI curation
-│   ├── tasks.py            # To-do list management
-│   ├── calendar_manager.py # Local calendar/events
-│   ├── history.py          # SQLite chat history
-│   └── llm.py              # Ollama LLM interface
-│
-├── gui/                    # PySide6 GUI
-│   ├── app.py              # Main window setup
-│   ├── handlers.py         # Chat message handling
-│   ├── tabs/               # Individual tab screens
-│   │   ├── dashboard.py    # Weather + status overview
-│   │   ├── chat.py         # AI chat interface
-│   │   ├── planner.py      # Calendar + tasks
-│   │   ├── briefing.py     # AI news curation
-│   │   ├── home_automation.py  # Smart device control
-│   │   └── settings.py     # App configuration
-│   └── components/         # Reusable UI widgets
-│
-├── merged_model/           # Fine-tuned FunctionGemma router
-└── demo.py                 # Standalone voice assistant demo
-```
-
-### How It Works
-
-```
-┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
-│  User Input │────▶│ FunctionGemma   │────▶│  Function   │
-│  (Voice/Text)  │     │   Router         │     │  Executor   │
-└─────────────┘     └──────────────────┘     └──────┬──────┘
-                                                    │
-       ┌────────────────────────────────────────────┼────────────────┐
-       │                                            │                │
-       ▼                                            ▼                ▼
-┌──────────────┐                          ┌──────────────┐   ┌──────────────┐
-│  Kasa Lights │                          │   Calendar   │   │  Web Search  │
-└──────────────┘                          └──────────────┘   └──────────────┘
-                                                    │
-                                                    ▼
-                                          ┌──────────────┐
-                                          │ Qwen LLM     │
-                                          │ (via Ollama) │
-                                          └──────────────┘
-                                                    │
-                                                    ▼
-                                          ┌──────────────┐
-                                          │ Piper TTS    │
-                                          │ (Voice Out)  │
-                                          └──────────────┘
-```
-
-1. **User speaks or types** a command
-2. **FunctionGemma Router** (fine-tuned local AI) classifies intent
-3. **Function Executor** runs the appropriate action
-4. **Qwen LLM** generates a natural language response
-5. **Piper TTS** speaks the response (if voice enabled)
-
----
-
-## 🏠 Smart Home Integration
-
-A.D.A supports **TP-Link Kasa** smart devices:
-
-### Supported Devices
-
-- ✅ Smart bulbs (on/off, brightness, color)
-- ✅ Smart plugs (on/off)
-- ✅ Smart light strips
-
-### Setup
-
-1. Ensure your Kasa devices are on the same network as your computer
-2. Open A.D.A and go to the **Home Automation** tab
-3. Click **Refresh** to scan for devices
-4. Control devices through the GUI or voice commands
-
-### Voice Commands
-
-```
-"Turn on the living room lights"
-"Set the bedroom lights to 50%"
-"Turn off all lights"
-"Change the office light to blue"
-```
-
----
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-<details>
-<summary><strong>❌ Ollama connection refused</strong></summary>
-
-**Problem**: The app can't connect to Ollama.
-
-**Solution**:
-1. Make sure Ollama is running: `ollama serve`
-2. Check if the model is downloaded: `ollama list`
-3. Verify the URL in `config.py` matches your setup
-
-</details>
-
-<details>
-<summary><strong>❌ CUDA/GPU not detected</strong></summary>
-
-**Problem**: PyTorch is running on CPU instead of GPU.
-
-**Solution**:
-1. Install CUDA-compatible PyTorch:
-   ```bash
-   pip install torch --index-url https://download.pytorch.org/whl/cu121
-   ```
-2. Verify CUDA: `python -c "import torch; print(torch.cuda.is_available())"`
-
-</details>
-
-<details>
-<summary><strong>❌ Voice assistant not working</strong></summary>
-
-**Problem**: Wake word isn't being detected.
-
-**Solution**:
-1. Check your microphone permissions
-2. Ensure `realtimestt` is installed: `pip install realtimestt`
-3. Try lowering `WAKE_WORD_SENSITIVITY` in `config.py`
-
-</details>
-
-<details>
-<summary><strong>❌ Smart devices not found</strong></summary>
-
-**Problem**: Kasa devices don't appear in the app.
-
-**Solution**:
-1. Ensure devices are on the same WiFi network
-2. Try the Kasa app first to verify devices work
-3. Check firewall isn't blocking device discovery (UDP port 9999)
-
-</details>
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Here's how to get started:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes
-4. Run tests: `pytest tests/`
-5. Submit a pull request
-
----
-
-## 📜 License
-
-This project is open source. See [LICENSE](LICENSE) for details.
-
----
-
-## 🙏 Acknowledgments
-
-- [Ollama](https://ollama.com/) - Local LLM inference
-- [QFluentWidgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets) - Beautiful UI components
-- [Piper TTS](https://github.com/rhasspy/piper) - Lightweight text-to-speech
-- [python-kasa](https://github.com/python-kasa/python-kasa) - Kasa device control
-- [RealTimeSTT](https://github.com/KoljaB/RealtimeSTT) - Speech recognition
-
----
-
-<p align="center">
-  Made with ❤️ for local AI enthusiasts
-</p>
+- [GitHub](https://github.com/bertrandrusa)
+- [LinkedIn](https://www.linkedin.com/in/bertrand-rusanganwa-433607276/)

@@ -18,6 +18,7 @@ from qfluentwidgets import (
 )
 
 from core.settings_store import settings
+from core.ollama import ollama_api_url
 
 
 class ModelFetcher(QThread):
@@ -31,7 +32,7 @@ class ModelFetcher(QThread):
     
     def run(self):
         try:
-            response = requests.get(f"{self.ollama_url}/api/tags", timeout=10)
+            response = requests.get(ollama_api_url(self.ollama_url, "tags"), timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 models = [m['name'] for m in data.get('models', [])]
@@ -55,7 +56,7 @@ class ConnectionTester(QThread):
     
     def run(self):
         try:
-            response = requests.get(f"{self.url}/api/tags", timeout=5)
+            response = requests.get(ollama_api_url(self.url, "tags"), timeout=5)
             if response.status_code == 200:
                 self.success.emit()
             else:
@@ -359,7 +360,7 @@ class SettingsTab(ScrollArea):
         self.router_model_card = SettingCard(
             FIF.ROBOT,
             "Function Router Model",
-            f"Local FunctionGemma model at: {LOCAL_ROUTER_PATH}",
+            "Optional FunctionGemma router (disabled in the default lightweight mode)",
             self.ai_group
         )
         self.ai_group.addSettingCard(self.router_model_card)
@@ -486,7 +487,7 @@ class SettingsTab(ScrollArea):
         self.about_card = PrimaryPushSettingCard(
             "Check Update",
             FIF.INFO,
-            "About A.D.A",
+            "About JARVIS",
             "Version 0.2.0 (Alpha)",
             self.about_group
         )

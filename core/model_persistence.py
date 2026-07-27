@@ -11,6 +11,7 @@ from config import (
     QWEN_KEEP_ALIVE, GRAY, RESET, CYAN
 )
 from core.model_manager import get_running_models, sync_unload_model
+from core.ollama import ollama_api_url
 
 
 class QwenModelManager:
@@ -46,7 +47,7 @@ class QwenModelManager:
             try:
                 print(f"{CYAN}[QwenManager] Loading {self.model_name}...{RESET}")
                 response = self.http_session.post(
-                    f"{OLLAMA_URL}/generate",
+                    ollama_api_url(OLLAMA_URL, "generate"),
                     json={
                         "model": self.model_name,
                         "prompt": "hi",
