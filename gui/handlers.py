@@ -1,24 +1,21 @@
 """Controllers for chat generation, local history, and session management."""
 
-import json
 import threading
 
 from PySide6.QtCore import QObject, QThread, Signal
 
 from config import MAX_HISTORY, RESPONDER_MODEL
-from core.ollama import ollama_api_url, trim_messages
+from core.chat_provider import JARVIS_SYSTEM_PROMPT
+from core.ollama import trim_messages
 
 SYSTEM_MESSAGE = {
     "role": "system",
-    "content": (
-        "You are JARVIS, a concise local desktop assistant. "
-        "Give clear, useful answers and say when you are uncertain."
-    ),
+    "content": JARVIS_SYSTEM_PROMPT,
 }
 
 
 class ChatWorker(QObject):
-    """Stream one Ollama response without blocking the Qt event loop."""
+    """Stream one provider response without blocking the Qt event loop."""
 
     response_chunk = Signal(str)
     completed = Signal(str)
@@ -35,48 +32,40 @@ class ChatWorker(QObject):
     def process(self):
         try:
             from core.llm import http_session
+            from core.chat_provider import (
+                provider_model,
+                provider_name,
+                stream_chat,
+            )
             from core.settings_store import settings
             from core.tts import SentenceBuffer, tts
 
             model = settings.get("models.chat", RESPONDER_MODEL)
             base_url = settings.get("ollama_url", "http://localhost:11434")
-            payload = {
-                "model": model,
-                "messages": self.messages,
-                "stream": True,
-                "keep_alive": "3m",
-            }
 
             sentence_buffer = SentenceBuffer()
             full_response = ""
-            self.status.emit(f"Generating locally with {model}…")
+            provider = provider_name()
+            active_model = provider_model(model)
+            location = "OpenAI" if provider == "openai" else "local Ollama"
+            self.status.emit(f"Generating with {location} · {active_model}…")
 
-            with http_session.post(
-                ollama_api_url(base_url, "chat"),
-                json=payload,
-                stream=True,
-                timeout=(5, 180),
-            ) as response:
-                response.raise_for_status()
+            for content in stream_chat(
+                self.messages,
+                ollama_model=model,
+                ollama_url=base_url,
+                session=http_session,
+            ):
+                if self.stop_event.is_set():
+                    self.status.emit("Generation stopped")
+                    break
 
-                for line in response.iter_lines():
-                    if self.stop_event.is_set():
-                        self.status.emit("Generation stopped")
-                        break
-                    if not line:
-                        continue
+                full_response += content
+                self.response_chunk.emit(content)
 
-                    data = json.loads(line.decode("utf-8"))
-                    content = data.get("message", {}).get("content", "")
-                    if not content:
-                        continue
-
-                    full_response += content
-                    self.response_chunk.emit(content)
-
-                    if self.is_tts_enabled:
-                        for sentence in sentence_buffer.add(content):
-                            tts.queue_sentence(sentence)
+                if self.is_tts_enabled:
+                    for sentence in sentence_buffer.add(content):
+                        tts.queue_sentence(sentence)
 
             remainder = sentence_buffer.flush()
             if remainder and self.is_tts_enabled and not self.stop_event.is_set():
@@ -91,7 +80,7 @@ class ChatWorker(QObject):
 
 
 class ChatHandlers(QObject):
-    """Coordinate the chat UI, Ollama worker, and SQLite history."""
+    """Coordinate the chat UI, provider worker, and SQLite history."""
 
     def __init__(self, main_window):
         super().__init__(main_window)
@@ -212,8 +201,10 @@ class ChatHandlers(QObject):
 
     def _show_error(self, error: str):
         message = (
-            "JARVIS could not reach Ollama. Confirm that Ollama is running "
-            f"and that the configured model is installed.\n\nDetails: {error}"
+            "JARVIS could not reach the configured AI provider. If you are using "
+            "OpenAI, confirm that OPENAI_API_KEY is set and your computer is "
+            "online. If you are using Ollama, confirm that its server and model "
+            f"are available.\n\nDetails: {error}"
         )
         if self._response_bubble:
             self._response_bubble.set_text(message)
