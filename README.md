@@ -38,7 +38,8 @@ automation.
 
 JARVIS is a modular desktop assistant that can use the OpenAI API or run its
 core AI workflow locally through [Ollama](https://ollama.com/). It automatically
-uses OpenAI when `OPENAI_API_KEY` is present and otherwise falls back to Ollama.
+uses OpenAI when a key is stored in the operating system credential vault and
+otherwise falls back to Ollama.
 It combines a Fluent Design interface
 with streaming LLM responses, wake-word speech recognition, local
 text-to-speech, persistent chat history, productivity tools, TP-Link Kasa
@@ -142,40 +143,30 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3. Add your OpenAI API key
-
-```powershell
-Copy-Item .env.example .env
-notepad .env
-```
-
-Add your key to `.env`:
-
-```env
-OPENAI_API_KEY=your_api_key_here
-```
-
-JARVIS automatically selects OpenAI when the key is present. The `.env` file is
-ignored by Git and must never be committed.
-
-### 4. Run JARVIS
+### 3. Run JARVIS
 
 ```powershell
 python main.py
 ```
 
-No Ollama installation or local language model is required for this API setup.
+On first launch, enter a new OpenAI API key in the setup window and select
+**Save securely**. JARVIS stores it in Windows Credential Manager, not in the
+repository or `settings.json`.
+
+You can later test, replace, or remove the key under
+**Settings → AI Provider**. No Notepad, Ollama installation, or local language
+model is required for the API setup.
 
 ### Optional: run the chat model fully locally
 
-Install Ollama, remove `OPENAI_API_KEY` from `.env`, and run:
+Install Ollama, select **Ollama** under **Settings → AI Provider**, and run:
 
 ```powershell
 ollama pull qwen3:1.7b
 python main.py
 ```
 
-You can force a provider or choose another API model in `.env`:
+Environment variables remain available for advanced or automated setups:
 
 ```env
 AI_PROVIDER=openai
@@ -220,7 +211,7 @@ Important defaults:
 
 | Setting | Default |
 | --- | --- |
-| AI provider | OpenAI when `OPENAI_API_KEY` exists; otherwise Ollama |
+| AI provider | Automatic |
 | OpenAI model | `gpt-5.6` |
 | Ollama server | `http://localhost:11434` |
 | Chat model | `qwen3:1.7b` |
@@ -244,7 +235,7 @@ Other optional features require network access:
 - Hugging Face and GitHub for first-run voice/model downloads
 - TP-Link Kasa discovery over the local network
 
-No API key is required for the default chat workflow.
+No API key is required when Ollama is selected.
 
 ## Testing
 

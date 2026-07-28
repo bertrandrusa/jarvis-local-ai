@@ -54,6 +54,7 @@ python-kasa>=0.10.0            # TP-Link Kasa smart device control
 # -----------------------------------------------------
 openai>=2.0.0                  # Cloud AI responses when OPENAI_API_KEY is set
 python-dotenv>=1.0.0           # Load local API settings from .env
+keyring>=25.0.0                # Secure API keys in Windows Credential Manager
 requests>=2.32.0               # HTTP requests for API calls
 duckduckgo-search>=8.0.0       # DuckDuckGo search API (provides DDGS class)
 httpx>=0.28.0                  # Async HTTP client

@@ -7,6 +7,8 @@ import os
 from collections.abc import Iterator
 from typing import Any
 
+from core.credentials import get_openai_api_key
+
 DEFAULT_OPENAI_MODEL = "gpt-5.6"
 _ENV_LOADED = False
 JARVIS_SYSTEM_PROMPT = (
@@ -40,16 +42,32 @@ def provider_name() -> str:
     """Return the configured provider, automatically preferring OpenAI with a key."""
     _load_environment()
     configured = os.getenv("AI_PROVIDER", "").strip().lower()
+    if not configured:
+        try:
+            from core.settings_store import settings
+        except ImportError:
+            configured = ""
+        else:
+            configured = str(settings.get("ai.provider", "")).strip().lower()
+            if configured in {"automatic", "auto"}:
+                configured = ""
     if configured:
         if configured not in {"openai", "ollama"}:
             raise ValueError("AI_PROVIDER must be either 'openai' or 'ollama'.")
         return configured
-    return "openai" if os.getenv("OPENAI_API_KEY") else "ollama"
+    return "openai" if get_openai_api_key() else "ollama"
 
 
 def provider_model(ollama_model: str) -> str:
     if provider_name() == "openai":
-        return os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
+        environment_model = os.getenv("OPENAI_MODEL", "").strip()
+        if environment_model:
+            return environment_model
+        try:
+            from core.settings_store import settings
+        except ImportError:
+            return DEFAULT_OPENAI_MODEL
+        return str(settings.get("ai.openai_model", DEFAULT_OPENAI_MODEL)).strip()
     return ollama_model
 
 
@@ -70,9 +88,10 @@ def _split_messages(
 
 
 def _openai_stream(messages: list[dict[str, str]]) -> Iterator[str]:
-    if not os.getenv("OPENAI_API_KEY"):
+    api_key = get_openai_api_key()
+    if not api_key:
         raise RuntimeError(
-            "OPENAI_API_KEY is missing. Copy .env.example to .env and add your key."
+            "An OpenAI API key is missing. Add one in JARVIS Settings → AI Provider."
         )
 
     try:
@@ -83,9 +102,9 @@ def _openai_stream(messages: list[dict[str, str]]) -> Iterator[str]:
         ) from exc
 
     instructions, conversation = _split_messages(messages)
-    client = OpenAI()
+    client = OpenAI(api_key=api_key)
     stream = client.responses.create(
-        model=os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL),
+        model=provider_model(DEFAULT_OPENAI_MODEL),
         instructions=instructions or None,
         input=conversation,
         stream=True,

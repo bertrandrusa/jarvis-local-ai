@@ -6,7 +6,7 @@ from config import LOCAL_ROUTER_PATH, RESPONDER_MODEL
 
 import requests
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QHBoxLayout
+    QWidget, QVBoxLayout, QLabel, QHBoxLayout, QLineEdit
 )
 from PySide6.QtCore import Qt, QThread, Signal, Slot
 
@@ -18,6 +18,12 @@ from qfluentwidgets import (
 )
 
 from core.settings_store import settings
+from core.credentials import (
+    delete_openai_api_key,
+    get_openai_api_key,
+    has_openai_api_key,
+    save_openai_api_key,
+)
 from core.ollama import ollama_api_url
 
 
@@ -65,6 +71,126 @@ class ConnectionTester(QThread):
             self.failed.emit("Connection refused")
         except Exception as e:
             self.failed.emit(str(e))
+
+
+class ApiConnectionTester(QThread):
+    """Background OpenAI credential check."""
+
+    success = Signal()
+    failed = Signal(str)
+
+    def __init__(self, api_key: str):
+        super().__init__()
+        self.api_key = api_key
+
+    def run(self):
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=self.api_key)
+            client.models.list()
+            self.success.emit()
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+class ApiKeyCard(SettingCard):
+    """Masked OpenAI API-key editor backed by Windows Credential Manager."""
+
+    def __init__(self, parent=None):
+        super().__init__(
+            FIF.LINK,
+            "OpenAI API Key",
+            "Stored securely in Windows Credential Manager",
+            parent,
+        )
+        self.tester = None
+
+        self.key_input = LineEdit(self)
+        self.key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.key_input.setMinimumWidth(220)
+        self._refresh_placeholder()
+
+        self.save_btn = PrimaryPushButton("Save", self)
+        self.save_btn.setFixedWidth(64)
+        self.save_btn.clicked.connect(self._save)
+
+        self.test_btn = PrimaryPushButton("Test", self)
+        self.test_btn.setFixedWidth(64)
+        self.test_btn.clicked.connect(self._test)
+
+        self.remove_btn = PrimaryPushButton("Remove", self)
+        self.remove_btn.setFixedWidth(76)
+        self.remove_btn.clicked.connect(self._remove)
+
+        self.hBoxLayout.addWidget(self.key_input, 0, Qt.AlignRight)
+        self.hBoxLayout.addSpacing(8)
+        self.hBoxLayout.addWidget(self.save_btn, 0, Qt.AlignRight)
+        self.hBoxLayout.addSpacing(6)
+        self.hBoxLayout.addWidget(self.test_btn, 0, Qt.AlignRight)
+        self.hBoxLayout.addSpacing(6)
+        self.hBoxLayout.addWidget(self.remove_btn, 0, Qt.AlignRight)
+        self.hBoxLayout.addSpacing(16)
+
+    def _refresh_placeholder(self):
+        self.key_input.clear()
+        self.key_input.setPlaceholderText(
+            "Key stored securely" if has_openai_api_key() else "sk-proj-…"
+        )
+
+    def _show(self, success: bool, title: str, content: str):
+        method = InfoBar.success if success else InfoBar.error
+        method(
+            title=title,
+            content=content,
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=4000,
+            parent=self.window(),
+        )
+
+    def _save(self):
+        try:
+            save_openai_api_key(self.key_input.text())
+            settings.set("ai.provider", "OpenAI")
+        except Exception as exc:
+            self._show(False, "Key not saved", str(exc))
+            return
+        self._refresh_placeholder()
+        self._show(True, "API key saved", "Stored in Windows Credential Manager.")
+
+    def _test(self):
+        api_key = self.key_input.text().strip() or get_openai_api_key()
+        if not api_key:
+            self._show(False, "No API key", "Enter or save an API key first.")
+            return
+
+        self.test_btn.setEnabled(False)
+        self.test_btn.setText("…")
+        self.tester = ApiConnectionTester(api_key)
+        self.tester.success.connect(
+            lambda: self._show(True, "Connected", "OpenAI accepted the API key.")
+        )
+        self.tester.failed.connect(
+            lambda error: self._show(False, "Connection failed", error)
+        )
+        self.tester.finished.connect(self._test_finished)
+        self.tester.start()
+
+    def _test_finished(self):
+        self.test_btn.setEnabled(True)
+        self.test_btn.setText("Test")
+
+    def _remove(self):
+        try:
+            removed = delete_openai_api_key()
+        except Exception as exc:
+            self._show(False, "Could not remove key", str(exc))
+            return
+        self._refresh_placeholder()
+        message = "Stored key removed." if removed else "No stored key was found."
+        self._show(True, "API key removed", message)
 
 
 class ComboBoxCard(SettingCard):
@@ -313,7 +439,8 @@ class SettingsTab(ScrollArea):
         self._available_models = []
         
         self._init_ui()
-        self._fetch_models()  # Auto-fetch on load
+        if str(settings.get("ai.provider", "Automatic")).lower() == "ollama":
+            self._fetch_models()
 
     def _init_ui(self):
         # ─────────────────────────────────────────────────────────────
@@ -334,9 +461,38 @@ class SettingsTab(ScrollArea):
         self.expandLayout.addWidget(self.personal_group)
 
         # ─────────────────────────────────────────────────────────────
-        # AI Models Group
+        # AI Provider Group
         # ─────────────────────────────────────────────────────────────
-        self.ai_group = SettingCardGroup("AI Models", self.scrollWidget)
+        self.provider_group = SettingCardGroup("AI Provider", self.scrollWidget)
+
+        self.provider_card = ComboBoxCard(
+            FIF.GLOBE,
+            "Chat Provider",
+            "Automatic uses OpenAI when a key is stored, otherwise Ollama",
+            ["Automatic", "OpenAI", "Ollama"],
+            "ai.provider",
+            self.provider_group,
+        )
+        self.provider_group.addSettingCard(self.provider_card)
+
+        self.api_key_card = ApiKeyCard(self.provider_group)
+        self.provider_group.addSettingCard(self.api_key_card)
+
+        self.openai_model_card = TextInputCard(
+            FIF.ROBOT,
+            "OpenAI Model",
+            "Model used for cloud chat responses",
+            "ai.openai_model",
+            "gpt-5.6",
+            self.provider_group,
+        )
+        self.provider_group.addSettingCard(self.openai_model_card)
+        self.expandLayout.addWidget(self.provider_group)
+
+        # ─────────────────────────────────────────────────────────────
+        # Local AI Models Group
+        # ─────────────────────────────────────────────────────────────
+        self.ai_group = SettingCardGroup("Local AI Models", self.scrollWidget)
         
         self.chat_model_card = ModelSelectCard(
             FIF.CHAT,

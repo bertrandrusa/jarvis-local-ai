@@ -2,6 +2,7 @@
 
 import threading
 
+from PySide6.QtCore import QTimer
 from qfluentwidgets import FluentIcon as FIF
 from qfluentwidgets import FluentWindow
 
@@ -46,6 +47,23 @@ class MainWindow(FluentWindow):
         self._connect_signals()
         self.handlers.initialize_sessions()
         self._init_voice_assistant()
+        QTimer.singleShot(0, self._show_first_run_api_setup)
+
+    def _show_first_run_api_setup(self):
+        from core.credentials import has_openai_api_key
+        from core.settings_store import settings
+        from gui.components.api_setup import ApiKeySetupDialog
+
+        selected_provider = str(
+            settings.get("ai.provider", "Automatic")
+        ).strip().lower()
+        if selected_provider == "ollama" or has_openai_api_key():
+            return
+
+        dialog = ApiKeySetupDialog(self)
+        if dialog.exec():
+            settings.set("ai.provider", "OpenAI")
+            self.set_status("OpenAI connected")
 
     def _init_voice_assistant(self):
         if not VOICE_ASSISTANT_ENABLED:
