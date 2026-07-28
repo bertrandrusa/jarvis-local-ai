@@ -7,12 +7,8 @@ import os
 from collections.abc import Iterator
 from typing import Any
 
-import requests
-from dotenv import load_dotenv
-
-load_dotenv()
-
 DEFAULT_OPENAI_MODEL = "gpt-5.6"
+_ENV_LOADED = False
 JARVIS_SYSTEM_PROMPT = (
     "You are JARVIS, Bertrand's sophisticated digital assistant. "
     "Speak with calm, polished British formality and address Bertrand as "
@@ -26,8 +22,23 @@ JARVIS_SYSTEM_PROMPT = (
 )
 
 
+def _load_environment() -> None:
+    """Load .env when python-dotenv is installed, without making tests depend on it."""
+    global _ENV_LOADED
+    if _ENV_LOADED:
+        return
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        pass
+    else:
+        load_dotenv()
+    _ENV_LOADED = True
+
+
 def provider_name() -> str:
     """Return the configured provider, automatically preferring OpenAI with a key."""
+    _load_environment()
     configured = os.getenv("AI_PROVIDER", "").strip().lower()
     if configured:
         if configured not in {"openai", "ollama"}:
@@ -91,7 +102,7 @@ def _ollama_stream(
     messages: list[dict[str, str]],
     model: str,
     base_url: str,
-    session: requests.Session,
+    session: Any,
 ) -> Iterator[str]:
     from core.ollama import ollama_api_url
 
@@ -122,7 +133,7 @@ def stream_chat(
     *,
     ollama_model: str,
     ollama_url: str,
-    session: requests.Session,
+    session: Any,
 ) -> Iterator[str]:
     """Yield text chunks from the automatically selected chat provider."""
     if provider_name() == "openai":
