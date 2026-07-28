@@ -12,6 +12,10 @@ from PySide6.QtCore import QObject, Signal
 DEFAULT_SETTINGS = {
     "theme": "Dark",
     "ollama_url": "http://localhost:11434",
+    "ai": {
+        "provider": "Automatic",
+        "openai_model": "gpt-5.6",
+    },
     "models": {
         "chat": "qwen3:1.7b",
         "web_agent": "qwen3-vl:4b",
