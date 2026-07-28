@@ -26,7 +26,8 @@ from config import (
 
 from core.stt import STTListener
 from core.llm import http_session
-from core.ollama import ollama_api_url, trim_messages
+from core.chat_provider import JARVIS_SYSTEM_PROMPT, stream_chat
+from core.ollama import trim_messages
 from core.tts import tts, SentenceBuffer
 from core.function_executor import executor as function_executor
 
@@ -48,10 +49,7 @@ class VoiceAssistant(QObject):
         self.messages = [
             {
                 "role": "system",
-                "content": (
-                    "You are a fast, concise assistant. "
-                    "Respond in short, natural sentences. No emojis."
-                )
+                "content": JARVIS_SYSTEM_PROMPT,
             }
         ]
 
@@ -162,42 +160,18 @@ class VoiceAssistant(QObject):
 
             self.messages.append({"role": "user", "content": prompt})
 
-            payload = {
-                "model": RESPONDER_MODEL,
-                "messages": self.messages,
-                "stream": True,
-                "keep_alive": "3m"
-            }
-
             sentence_buffer = SentenceBuffer()
             full_response = ""
 
-            with http_session.post(
-                ollama_api_url(OLLAMA_URL, "chat"),
-                json=payload,
-                stream=True,
-                timeout=(5, 180),
-            ) as r:
-                r.raise_for_status()
-
-                for line in r.iter_lines():
-                    if not line:
-                        continue
-
-                    try:
-                        chunk = json.loads(line.decode("utf-8"))
-                        msg = chunk.get("message", {})
-
-                        if "content" in msg and msg["content"]:
-                            content = msg["content"]
-                            full_response += content
-
-                            sentences = sentence_buffer.add(content)
-                            for s in sentences:
-                                tts.queue_sentence(s)
-
-                    except:
-                        continue
+            for content in stream_chat(
+                self.messages,
+                ollama_model=RESPONDER_MODEL,
+                ollama_url=OLLAMA_URL,
+                session=http_session,
+            ):
+                full_response += content
+                for sentence in sentence_buffer.add(content):
+                    tts.queue_sentence(sentence)
 
             # flush remaining
             rem = sentence_buffer.flush()

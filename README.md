@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>A privacy-focused desktop AI assistant for Windows.</strong><br>
-  Local chat, voice interaction, planning, smart-home control, live briefings,
+  API or local chat, voice interaction, planning, smart-home control, live briefings,
   and browser automation in one Python application.
 </p>
 
@@ -36,8 +36,10 @@ automation.
 
 ## Overview
 
-JARVIS is a modular desktop assistant that runs its core AI workflow locally
-through [Ollama](https://ollama.com/). It combines a Fluent Design interface
+JARVIS is a modular desktop assistant that can use the OpenAI API or run its
+core AI workflow locally through [Ollama](https://ollama.com/). It automatically
+uses OpenAI when `OPENAI_API_KEY` is present and otherwise falls back to Ollama.
+It combines a Fluent Design interface
 with streaming LLM responses, wake-word speech recognition, local
 text-to-speech, persistent chat history, productivity tools, TP-Link Kasa
 device control, news and weather data, and an experimental vision-powered
@@ -52,7 +54,7 @@ AI-assisted function routing.
 
 | Area | Implementation |
 | --- | --- |
-| Local AI chat | Streams responses from a configurable Ollama model without sending chat history to a hosted LLM |
+| Flexible AI chat | Streams responses from OpenAI when an API key is configured, with optional local Ollama fallback |
 | Voice assistant | `"Jarvis"` wake word, RealTimeSTT transcription, and Piper speech output |
 | Desktop interface | PySide6 and Fluent Widgets with dashboard, chat, planner, briefing, smart-home, browser, and settings views |
 | Conversation history | Local SQLite sessions with rename, pin, delete, and automatic titles |
@@ -67,7 +69,7 @@ AI-assisted function routing.
 ```mermaid
 flowchart TD
     U["Voice or text input"] --> UI["PySide6 desktop UI"]
-    UI --> AI["Ollama local models"]
+    UI --> AI["OpenAI API or Ollama"]
     UI --> DB["SQLite history and planner"]
     U --> V["RealTimeSTT and Piper TTS"]
     V --> AI
@@ -83,7 +85,8 @@ jarvis-local-ai/
 ├── config.py                   # Runtime defaults
 ├── core/
 │   ├── ollama.py               # Ollama URL and history helpers
-│   ├── llm.py                  # Local model communication
+│   ├── chat_provider.py        # OpenAI/Ollama provider selection
+│   ├── llm.py                  # Shared HTTP session and local helpers
 │   ├── voice_assistant.py      # Speech-to-response pipeline
 │   ├── stt.py                  # Wake word and transcription
 │   ├── tts.py                  # Streaming Piper speech output
@@ -104,7 +107,7 @@ jarvis-local-ai/
 ## Technology stack
 
 - **Application:** Python, PySide6, PySide6-Fluent-Widgets
-- **Local AI:** Ollama, Qwen3, Transformers, optional FunctionGemma router
+- **AI:** OpenAI Responses API or Ollama with Qwen3
 - **Speech:** RealTimeSTT, Whisper, Porcupine wake word, Piper TTS
 - **Storage:** SQLite
 - **Automation:** Playwright, Playwright Stealth
@@ -118,7 +121,7 @@ jarvis-local-ai/
 
 - Windows 10 or 11
 - Python 3.10+
-- [Ollama](https://ollama.com/download)
+- An OpenAI API key for the simplest setup, or optional [Ollama](https://ollama.com/download)
 - A microphone for voice features
 - 8 GB RAM minimum; 16 GB recommended
 - An NVIDIA GPU is optional but improves model and transcription speed
@@ -139,17 +142,21 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3. Install the default local model
+### 3. Add your OpenAI API key
 
 ```powershell
-ollama pull qwen3:1.7b
+Copy-Item .env.example .env
+notepad .env
 ```
 
-Ollama normally starts in the background after installation. Verify it with:
+Add your key to `.env`:
 
-```powershell
-ollama list
+```env
+OPENAI_API_KEY=your_api_key_here
 ```
+
+JARVIS automatically selects OpenAI when the key is present. The `.env` file is
+ignored by Git and must never be committed.
 
 ### 4. Run JARVIS
 
@@ -157,8 +164,23 @@ ollama list
 python main.py
 ```
 
-Use the Settings view to select another installed Ollama model or change the
-server URL.
+No Ollama installation or local language model is required for this API setup.
+
+### Optional: run the chat model fully locally
+
+Install Ollama, remove `OPENAI_API_KEY` from `.env`, and run:
+
+```powershell
+ollama pull qwen3:1.7b
+python main.py
+```
+
+You can force a provider or choose another API model in `.env`:
+
+```env
+AI_PROVIDER=openai
+OPENAI_MODEL=gpt-5.6
+```
 
 ## Optional setup
 
@@ -198,6 +220,8 @@ Important defaults:
 
 | Setting | Default |
 | --- | --- |
+| AI provider | OpenAI when `OPENAI_API_KEY` exists; otherwise Ollama |
+| OpenAI model | `gpt-5.6` |
 | Ollama server | `http://localhost:11434` |
 | Chat model | `qwen3:1.7b` |
 | Voice wake word | `jarvis` |
@@ -209,8 +233,11 @@ Important defaults:
 JARVIS keeps chat sessions, tasks, calendar entries, alarms, and preferences
 on the local computer. Runtime databases and logs are excluded from Git.
 
-The core chat model runs through the local Ollama server. Some optional
-features require network access:
+With OpenAI mode enabled, chat messages are sent to the OpenAI API for
+generation. Local history, tasks, calendar entries, alarms, and preferences
+remain on the computer. Ollama mode keeps core chat generation local.
+
+Other optional features require network access:
 
 - Open-Meteo for weather
 - DuckDuckGo for news and web search
