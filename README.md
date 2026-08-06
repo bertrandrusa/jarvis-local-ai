@@ -1,274 +1,76 @@
-# JARVIS Local AI
+# JARVIS Cloud
 
-<p align="center">
-  <strong>A privacy-focused desktop AI assistant for Windows.</strong><br>
-  API or local chat, voice interaction, planning, smart-home control, live briefings,
-  and browser automation in one Python application.
-</p>
+A browser-based AI assistant powered by the Google Gemini API and designed for cloud hosting on Render.
 
-<p align="center">
-  <a href="https://github.com/bertrandrusa/jarvis-local-ai/actions/workflows/ci.yml">
-    <img src="https://github.com/bertrandrusa/jarvis-local-ai/actions/workflows/ci.yml/badge.svg" alt="CI status">
-  </a>
-  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white" alt="Windows">
-  <img src="https://img.shields.io/badge/AI-Local--first-2ea44f" alt="Local-first AI">
-</p>
+## What changed
 
-<p align="center">
-  <a href="https://jarvis-cloud-demo.rusanganbertrand.chatgpt.site"><strong>Launch the cloud demo</strong></a>
-  ·
-  <a href="https://github.com/bertrandrusa/jarvis-local-ai">Explore the source</a>
-</p>
+This branch replaces the Windows PySide6/Ollama desktop entry point with:
 
-## Cloud demonstration
+- a Flask web application
+- a responsive browser chat interface
+- Google Gemini as the AI provider
+- Render deployment configuration
+- server-side API-key storage
 
-The public [JARVIS Cloud Demo](https://jarvis-cloud-demo.rusanganbertrand.chatgpt.site) lets recruiters and visitors explore
-the assistant without installing Python, Ollama, models, or desktop dependencies.
-It demonstrates contextual chat, browser-supported voice input and output,
-persistent demo conversations, planning, briefings, smart-home workflows,
-system telemetry, and browser-agent concepts.
-
-Hardware-dependent actions are clearly simulated in the public demo. The Python
-desktop application in this repository remains the full local implementation
-for Ollama inference, Piper speech, SQLite storage, Kasa devices, and Playwright
-automation.
-
-## Overview
-
-JARVIS is a modular desktop assistant that can use the OpenAI API or run its
-core AI workflow locally through [Ollama](https://ollama.com/). It automatically
-uses OpenAI when a key is stored in the operating system credential vault and
-otherwise falls back to Ollama.
-It combines a Fluent Design interface
-with streaming LLM responses, wake-word speech recognition, local
-text-to-speech, persistent chat history, productivity tools, TP-Link Kasa
-device control, news and weather data, and an experimental vision-powered
-browser agent.
-
-The project demonstrates practical work across desktop application
-development, local model integration, asynchronous processing, REST APIs,
-SQLite persistence, browser automation, smart-home networking, and
-AI-assisted function routing.
-
-## Highlights
-
-| Area | Implementation |
-| --- | --- |
-| Flexible AI chat | Streams responses from OpenAI when an API key is configured, with optional local Ollama fallback |
-| Voice assistant | `"Jarvis"` wake word, RealTimeSTT transcription, and Piper speech output |
-| Desktop interface | PySide6 and Fluent Widgets with dashboard, chat, planner, briefing, smart-home, browser, and settings views |
-| Conversation history | Local SQLite sessions with rename, pin, delete, and automatic titles |
-| Smart-home control | Discovers and controls supported TP-Link Kasa bulbs, plugs, and light strips on the local network |
-| Productivity | Local tasks, calendar events, alarms, and focus timers |
-| Information modules | Open-Meteo weather data and DuckDuckGo-powered news/search |
-| Browser agent | Experimental Playwright controller driven by a local vision-language model |
-| Quality controls | Core unit tests, Python compilation checks, and a multi-version GitHub Actions workflow |
+Nothing needs to run on your computer after deployment. Your device only opens the website.
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    U["Voice or text input"] --> UI["PySide6 desktop UI"]
-    UI --> AI["OpenAI API or Ollama"]
-    UI --> DB["SQLite history and planner"]
-    U --> V["RealTimeSTT and Piper TTS"]
-    V --> AI
-    UI --> M["Optional modules"]
-    M --> S["Kasa, Open-Meteo, DuckDuckGo, Playwright"]
+```text
+Browser → Render Flask app → Gemini API
 ```
 
-### Main components
+The browser never receives the Gemini API key. Render stores it as a secret environment variable.
+
+## Deploy to Render
+
+1. Create a Gemini API key in Google AI Studio.
+2. Sign in to Render and create a **Blueprint** from this GitHub repository.
+3. Select the `gemini-cloud-web` branch while reviewing this pull request, or deploy `main` after merging it.
+4. When Render requests environment variables, enter:
 
 ```text
-jarvis-local-ai/
-├── main.py                     # Application entry point
-├── config.py                   # Runtime defaults
-├── core/
-│   ├── ollama.py               # Ollama URL and history helpers
-│   ├── chat_provider.py        # OpenAI/Ollama provider selection
-│   ├── llm.py                  # Shared HTTP session and local helpers
-│   ├── voice_assistant.py      # Speech-to-response pipeline
-│   ├── stt.py                  # Wake word and transcription
-│   ├── tts.py                  # Streaming Piper speech output
-│   ├── history.py              # SQLite chat sessions
-│   ├── tasks.py                # Tasks and alarms
-│   ├── calendar_manager.py     # Local calendar storage
-│   ├── kasa_control.py         # Smart-device discovery and control
-│   └── agent/                  # Playwright browser agent
-├── gui/
-│   ├── app.py                  # Window and navigation
-│   ├── handlers.py             # Chat and session controller
-│   ├── tabs/                   # Feature views
-│   └── components/             # Reusable Fluent UI widgets
-├── tests/                      # Dependency-light core tests
-└── .github/workflows/ci.yml    # Continuous integration
+GEMINI_API_KEY=your_secret_key
 ```
 
-## Technology stack
+The included `render.yaml` configures the remaining settings automatically.
 
-- **Application:** Python, PySide6, PySide6-Fluent-Widgets
-- **AI:** OpenAI Responses API or Ollama with Qwen3
-- **Speech:** RealTimeSTT, Whisper, Porcupine wake word, Piper TTS
-- **Storage:** SQLite
-- **Automation:** Playwright, Playwright Stealth
-- **Smart home:** python-kasa
-- **Data sources:** Open-Meteo, DuckDuckGo
-- **Testing and delivery:** unittest, GitHub Actions
+## Run for development
 
-## Getting started
-
-### Requirements
-
-- Windows 10 or 11
-- Python 3.10+
-- An OpenAI API key for the simplest setup, or optional [Ollama](https://ollama.com/download)
-- A microphone for voice features
-- 8 GB RAM minimum; 16 GB recommended
-- An NVIDIA GPU is optional but improves model and transcription speed
-
-### 1. Clone the repository
-
-```powershell
-git clone https://github.com/bertrandrusa/jarvis-local-ai.git
-cd jarvis-local-ai
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+export GEMINI_API_KEY="your-key"
+python main.py
 ```
 
-### 2. Create a virtual environment
+On Windows PowerShell:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
 pip install -r requirements.txt
-```
-
-### 3. Run JARVIS
-
-```powershell
+$env:GEMINI_API_KEY="your-key"
 python main.py
 ```
 
-On first launch, enter a new OpenAI API key in the setup window and select
-**Save securely**. JARVIS stores it in Windows Credential Manager, not in the
-repository or `settings.json`.
+Open `http://localhost:10000`.
 
-You can later test, replace, or remove the key under
-**Settings → AI Provider**. No Notepad, Ollama installation, or local language
-model is required for the API setup.
+## Environment variables
 
-### Optional: run the chat model fully locally
+| Variable | Required | Default |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | Yes | None |
+| `GEMINI_MODEL` | No | `gemini-2.5-flash` |
+| `PORT` | No | `10000` |
 
-Install Ollama, select **Ollama** under **Settings → AI Provider**, and run:
+## Security
 
-```powershell
-ollama pull qwen3:1.7b
-python main.py
-```
+- Never commit an API key to GitHub.
+- Store the key only in Render's environment-variable settings.
+- The key remains on the server and is not included in browser JavaScript.
 
-Environment variables remain available for advanced or automated setups:
+## Current scope
 
-```env
-AI_PROVIDER=openai
-OPENAI_MODEL=gpt-5.6
-```
-
-## Optional setup
-
-### Browser agent
-
-The browser agent requires a local vision model and Playwright browser:
-
-```powershell
-ollama pull qwen3-vl:4b
-playwright install chromium
-```
-
-Browser automation is experimental. Review an instruction before running it
-against an authenticated or sensitive website.
-
-### NVIDIA acceleration
-
-Install the PyTorch build recommended for your installed CUDA version from
-[pytorch.org](https://pytorch.org/get-started/locally/). JARVIS continues to
-work on CPU, but voice transcription and local inference may be slower.
-
-### Smart-home control
-
-Supported Kasa devices must be connected to the same local network as the
-computer. Open **Smart Home** and use **Refresh** to discover available
-devices.
-
-## Configuration
-
-Application preferences are stored locally in:
-
-```text
-~/.jarvis_local_ai/settings.json
-```
-
-Important defaults:
-
-| Setting | Default |
-| --- | --- |
-| AI provider | Automatic |
-| OpenAI model | `gpt-5.6` |
-| Ollama server | `http://localhost:11434` |
-| Chat model | `qwen3:1.7b` |
-| Voice wake word | `jarvis` |
-| STT model | `tiny` |
-| Maximum chat context | 20 messages |
-
-## Privacy and network behavior
-
-JARVIS keeps chat sessions, tasks, calendar entries, alarms, and preferences
-on the local computer. Runtime databases and logs are excluded from Git.
-
-With OpenAI mode enabled, chat messages are sent to the OpenAI API for
-generation. Local history, tasks, calendar entries, alarms, and preferences
-remain on the computer. Ollama mode keeps core chat generation local.
-
-Other optional features require network access:
-
-- Open-Meteo for weather
-- DuckDuckGo for news and web search
-- Hugging Face and GitHub for first-run voice/model downloads
-- TP-Link Kasa discovery over the local network
-
-No API key is required when Ollama is selected.
-
-## Testing
-
-The core test suite intentionally avoids GUI, microphone, model, and
-smart-device requirements:
-
-```powershell
-python -m compileall -q core gui tests main.py config.py
-python -m unittest discover -s tests -p "test_*.py" -v
-```
-
-GitHub Actions runs these checks on Python 3.10, 3.11, and 3.12 for every pull
-request.
-
-## Project status
-
-JARVIS is an active portfolio project and remains an alpha desktop
-application. Local chat, session history, voice, planning, information, and
-device-control modules are implemented. Hardware-dependent features should be
-validated on the target Windows computer and local network.
-
-Future improvements include:
-
-- Packaged Windows installer
-- End-to-end GUI tests
-- Permission controls for browser actions
-- Expanded natural-language tool routing
-- In-app diagnostics for microphones, Ollama, and Kasa devices
-
-## Author
-
-Built by **Bertrand Rusanganwa**, a computer science graduate focused on
-software engineering, cybersecurity, cloud, and infrastructure systems.
-
-- [GitHub](https://github.com/bertrandrusa)
-- [LinkedIn](https://www.linkedin.com/in/bertrand-rusanganwa-433607276/)
+The cloud version supports Gemini chat and browser access from phones and computers. Windows desktop automation, local smart-home discovery, local wake-word listening, and other hardware-dependent functions are not included because those require software running on the local machine.
