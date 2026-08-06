@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JARVIS Cloud</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <p class="eyebrow">GEMINI-POWERED ASSISTANT</p>
+        <h1>JARVIS Cloud</h1>
+      </div>
+      <span class="status"><i></i> Online</span>
+    </header>
+
+    <section id="messages" class="messages" aria-live="polite">
+      <article class="message assistant">
+        <strong>JARVIS</strong>
+        <p>Systems ready, sir. What shall we work on?</p>
+      </article>
+    </section>
+
+    <form id="chat-form">
+      <textarea id="message" rows="1" placeholder="Ask JARVIS anything…" required></textarea>
+      <button type="submit">Send</button>
+    </form>
+    <p class="note">Your Gemini key stays on the server and is never sent to the browser.</p>
+  </main>
+
+<script>
+const form = document.querySelector('#chat-form');
+const input = document.querySelector('#message');
+const messages = document.querySelector('#messages');
+const history = [];
+
+function addMessage(role, text) {
+  const article = document.createElement('article');
+  article.className = `message ${role === 'user' ? 'user' : 'assistant'}`;
+  const label = document.createElement('strong');
+  label.textContent = role === 'user' ? 'YOU' : 'JARVIS';
+  const p = document.createElement('p');
+  p.textContent = text;
+  article.append(label, p);
+  messages.appendChild(article);
+  messages.scrollTop = messages.scrollHeight;
+  return article;
+}
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+
+  addMessage('user', text);
+  input.value = '';
+  const pending = addMessage('model', 'Thinking…');
+  form.querySelector('button').disabled = true;
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: text, history})
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Request failed');
+    pending.querySelector('p').textContent = data.reply;
+    history.push({role: 'user', text}, {role: 'model', text: data.reply});
+  } catch (error) {
+    pending.querySelector('p').textContent = `Error: ${error.message}`;
+  } finally {
+    form.querySelector('button').disabled = false;
+    input.focus();
+  }
+});
+</script>
+</body>
+</html>
