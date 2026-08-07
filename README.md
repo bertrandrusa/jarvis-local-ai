@@ -1,39 +1,59 @@
 # JARVIS Cloud
 
-A browser-based AI assistant powered by the Google Gemini API and designed for cloud hosting on Render.
+A cloud-hosted personal assistant powered by Google Gemini, with real-time native voice through the Gemini Live API.
 
-## What changed
-
-This branch replaces the Windows PySide6/Ollama desktop entry point with:
-
-- a Flask web application
-- a responsive browser chat interface
-- Google Gemini as the AI provider
-- Render deployment configuration
-- server-side API-key storage
-
-Nothing needs to run on your computer after deployment. Your device only opens the website.
-
-## Architecture
+## What runs where
 
 ```text
-Browser → Render Flask app → Gemini API
+                         permanent GEMINI_API_KEY
+                                  │
+                                  ▼
+Browser ── token request ──► Render / Flask
+   │                              │
+   │                       short-lived token
+   │◄─────────────────────────────┘
+   │
+   └──── realtime audio/text ───► Gemini Live API
+                 ▲                    │
+                 └── native audio ────┘
 ```
 
-The browser never receives the Gemini API key. Render stores it as a secret environment variable.
+Nothing needs to run continuously on your computer. Your phone or computer only needs a modern browser.
+
+## Voice architecture
+
+The primary voice path uses:
+
+- `gemini-3.1-flash-live-preview`
+- direct browser-to-Gemini WebSocket audio streaming
+- one-session ephemeral tokens minted by Render
+- 16 kHz PCM microphone input
+- 24 kHz native Gemini audio output
+- input and output transcriptions for the on-screen conversation
+- server-side voice activity detection so you can speak naturally and interrupt replies
+
+The browser's built-in text-to-speech engine is no longer the main voice system. Voice selection now changes the actual Gemini native voice.
+
+If Live cannot start, typed messages automatically fall back to the regular Gemini text endpoint.
+
+## Voice selection
+
+The interface exposes Gemini's prebuilt voices, including Charon, Gacrux, Orus, Alnilam, Sadaltager, Kore, Puck, Fenrir, Aoede, and others. The selected voice is stored in browser `localStorage` and is applied when the next Live session starts.
 
 ## Deploy to Render
 
 1. Create a Gemini API key in Google AI Studio.
-2. Sign in to Render and create a **Blueprint** from this GitHub repository.
-3. Select the `gemini-cloud-web` branch while reviewing this pull request, or deploy `main` after merging it.
-4. When Render requests environment variables, enter:
+2. Create or deploy the Render Blueprint from this repository.
+3. In Render, set the secret environment variable:
 
 ```text
 GEMINI_API_KEY=your_secret_key
 ```
 
-The included `render.yaml` configures the remaining settings automatically.
+4. Deploy `main`.
+5. Open the Render URL, allow microphone permission, and press the microphone or **Start Live**.
+
+The permanent API key never appears in browser JavaScript. Render only gives the browser a short-lived Live API token.
 
 ## Run for development
 
@@ -62,15 +82,17 @@ Open `http://localhost:10000`.
 | Variable | Required | Default |
 | --- | --- | --- |
 | `GEMINI_API_KEY` | Yes | None |
-| `GEMINI_MODEL` | No | `gemini-2.5-flash` |
+| `GEMINI_MODEL` | No | `gemini-3.6-flash` |
 | `PORT` | No | `10000` |
 
 ## Security
 
-- Never commit an API key to GitHub.
-- Store the key only in Render's environment-variable settings.
-- The key remains on the server and is not included in browser JavaScript.
+- Never commit the Gemini API key to GitHub.
+- Store the permanent key only in Render environment variables.
+- Live sessions use short-lived, single-session ephemeral tokens.
+- Token responses are intended only for establishing a Gemini Live connection.
+- A public deployment can still consume your Gemini quota; add user authentication before sharing the site widely.
 
 ## Current scope
 
-The cloud version supports Gemini chat and browser access from phones and computers. Windows desktop automation, local smart-home discovery, local wake-word listening, and other hardware-dependent functions are not included because those require software running on the local machine.
+The cloud version supports native real-time voice, typed chat, phone/desktop browser access, and conversational interruption. Direct Windows/macOS/Linux desktop control is not part of the cloud runtime because controlling local applications and hardware requires an optional local companion process.

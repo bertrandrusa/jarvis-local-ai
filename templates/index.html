@@ -5,253 +5,87 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>JARVIS Cloud</title>
   <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/live.js" defer></script>
 </head>
 <body>
   <main class="shell">
     <header>
       <div>
-        <p class="eyebrow">GEMINI-POWERED ASSISTANT</p>
+        <p class="eyebrow">GEMINI LIVE · NATIVE AUDIO</p>
         <h1>JARVIS Cloud</h1>
       </div>
+
       <div class="header-actions">
         <label class="voice-picker" for="voice-select">
-          <span>Voice</span>
-          <select id="voice-select" aria-label="JARVIS voice">
-            <option value="">Automatic (British preferred)</option>
+          <span>Gemini voice</span>
+          <select id="voice-select" aria-label="JARVIS Gemini voice">
+            <option value="Charon">Charon — Informative</option>
+            <option value="Gacrux">Gacrux — Mature</option>
+            <option value="Sadaltager">Sadaltager — Knowledgeable</option>
+            <option value="Orus">Orus — Firm</option>
+            <option value="Alnilam">Alnilam — Firm</option>
+            <option value="Algenib">Algenib — Gravelly</option>
+            <option value="Iapetus">Iapetus — Clear</option>
+            <option value="Rasalgethi">Rasalgethi — Informative</option>
+            <option value="Schedar">Schedar — Even</option>
+            <option value="Sulafat">Sulafat — Warm</option>
+            <option value="Achird">Achird — Friendly</option>
+            <option value="Kore">Kore — Firm</option>
+            <option value="Puck">Puck — Upbeat</option>
+            <option value="Fenrir">Fenrir — Excitable</option>
+            <option value="Aoede">Aoede — Breezy</option>
+            <option value="Zephyr">Zephyr — Bright</option>
+            <option value="Leda">Leda — Youthful</option>
+            <option value="Callirrhoe">Callirrhoe — Easy-going</option>
+            <option value="Autonoe">Autonoe — Bright</option>
+            <option value="Enceladus">Enceladus — Breathy</option>
+            <option value="Umbriel">Umbriel — Easy-going</option>
+            <option value="Algieba">Algieba — Smooth</option>
+            <option value="Despina">Despina — Smooth</option>
+            <option value="Erinome">Erinome — Clear</option>
+            <option value="Laomedeia">Laomedeia — Upbeat</option>
+            <option value="Achernar">Achernar — Soft</option>
+            <option value="Pulcherrima">Pulcherrima — Forward</option>
+            <option value="Zubenelgenubi">Zubenelgenubi — Casual</option>
+            <option value="Vindemiatrix">Vindemiatrix — Gentle</option>
+            <option value="Sadachbia">Sadachbia — Lively</option>
           </select>
         </label>
-        <button id="voice-preview" class="secondary compact" type="button">Test</button>
-        <button id="voice-toggle" class="secondary" type="button" aria-pressed="true">Voice on</button>
-        <span class="status"><i></i> Online</span>
+
+        <button id="voice-preview" class="secondary compact" type="button">Test voice</button>
+        <button id="live-toggle" class="secondary" type="button">Start Live</button>
+
+        <span class="status">
+          <i id="status-dot" data-state="offline"></i>
+          <span id="status-text">Text mode</span>
+        </span>
       </div>
     </header>
 
     <section id="messages" class="messages" aria-live="polite">
       <article class="message assistant">
         <strong>JARVIS</strong>
-        <p>Systems ready, sir. What shall we work on?</p>
+        <p>Systems ready, sir. Start Live or press the microphone when you are ready.</p>
       </article>
     </section>
 
     <form id="chat-form">
-      <button id="mic" class="mic" type="button" aria-label="Speak to JARVIS" title="Speak to JARVIS">🎙</button>
-      <textarea id="message" rows="1" placeholder="Ask JARVIS anything…" required></textarea>
+      <button
+        id="mic"
+        class="mic"
+        type="button"
+        aria-label="Start or stop Gemini Live microphone"
+        aria-pressed="false"
+        title="Start or stop Gemini Live microphone"
+      >🎙</button>
+      <textarea id="message" rows="1" placeholder="Type to JARVIS, or use the microphone…" required></textarea>
       <button id="send" type="submit">Send</button>
     </form>
-    <p id="voice-note" class="note">Voice uses your browser microphone and speech engine. Your Gemini key stays on the server.</p>
+
+    <p id="voice-note" class="note">
+      Gemini Live streams microphone audio directly from your browser using a short-lived token.
+      Your permanent Gemini API key remains on Render.
+    </p>
   </main>
-
-<script>
-const form = document.querySelector('#chat-form');
-const input = document.querySelector('#message');
-const messages = document.querySelector('#messages');
-const sendButton = document.querySelector('#send');
-const micButton = document.querySelector('#mic');
-const voiceToggle = document.querySelector('#voice-toggle');
-const voiceSelect = document.querySelector('#voice-select');
-const voicePreview = document.querySelector('#voice-preview');
-const voiceNote = document.querySelector('#voice-note');
-const history = [];
-const VOICE_STORAGE_KEY = 'jarvisVoiceURI';
-let voiceEnabled = true;
-let recognition = null;
-let availableVoices = [];
-
-function addMessage(role, text) {
-  const article = document.createElement('article');
-  article.className = `message ${role === 'user' ? 'user' : 'assistant'}`;
-  const label = document.createElement('strong');
-  label.textContent = role === 'user' ? 'YOU' : 'JARVIS';
-  const p = document.createElement('p');
-  p.textContent = text;
-  article.append(label, p);
-  messages.appendChild(article);
-  messages.scrollTop = messages.scrollHeight;
-  return article;
-}
-
-function pickBritishVoice() {
-  return availableVoices.find(v => /^en-GB$/i.test(v.lang))
-      || availableVoices.find(v => /^en-GB/i.test(v.lang))
-      || availableVoices.find(v => /^en/i.test(v.lang))
-      || availableVoices[0]
-      || null;
-}
-
-function selectedVoice() {
-  const selectedURI = voiceSelect.value;
-  if (selectedURI) {
-    const selected = availableVoices.find(v => v.voiceURI === selectedURI);
-    if (selected) return selected;
-  }
-  return pickBritishVoice();
-}
-
-function loadVoices() {
-  if (!('speechSynthesis' in window)) {
-    voiceSelect.disabled = true;
-    voicePreview.disabled = true;
-    return;
-  }
-
-  availableVoices = window.speechSynthesis.getVoices().slice().sort((a, b) => {
-    const aEnglish = /^en/i.test(a.lang) ? 0 : 1;
-    const bEnglish = /^en/i.test(b.lang) ? 0 : 1;
-    return aEnglish - bEnglish || a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name);
-  });
-
-  const saved = localStorage.getItem(VOICE_STORAGE_KEY) || '';
-  const previous = voiceSelect.value || saved;
-  voiceSelect.innerHTML = '<option value="">Automatic (British preferred)</option>';
-
-  for (const voice of availableVoices) {
-    const option = document.createElement('option');
-    option.value = voice.voiceURI;
-    option.textContent = `${voice.name} — ${voice.lang}${voice.default ? ' (default)' : ''}`;
-    voiceSelect.appendChild(option);
-  }
-
-  if (previous && availableVoices.some(v => v.voiceURI === previous)) {
-    voiceSelect.value = previous;
-  } else {
-    voiceSelect.value = '';
-  }
-}
-
-function speak(text, force = false) {
-  if ((!voiceEnabled && !force) || !('speechSynthesis' in window) || !text) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  const voice = selectedVoice();
-  if (voice) {
-    utterance.voice = voice;
-    utterance.lang = voice.lang || 'en-GB';
-  } else {
-    utterance.lang = 'en-GB';
-  }
-  utterance.rate = 0.96;
-  utterance.pitch = 0.9;
-  window.speechSynthesis.speak(utterance);
-}
-
-voiceSelect.addEventListener('change', () => {
-  if (voiceSelect.value) {
-    localStorage.setItem(VOICE_STORAGE_KEY, voiceSelect.value);
-  } else {
-    localStorage.removeItem(VOICE_STORAGE_KEY);
-  }
-  const voice = selectedVoice();
-  voiceNote.textContent = voice
-    ? `Selected voice: ${voice.name} (${voice.lang}). Saved for this browser.`
-    : 'Voice selection is set to automatic.';
-});
-
-voicePreview.addEventListener('click', () => {
-  const wasEnabled = voiceEnabled;
-  speak('Good evening, sir. JARVIS voice systems are online.', true);
-  if (!wasEnabled) voiceNote.textContent = 'Voice preview played. Spoken replies are still turned off.';
-});
-
-voiceToggle.addEventListener('click', () => {
-  voiceEnabled = !voiceEnabled;
-  voiceToggle.textContent = voiceEnabled ? 'Voice on' : 'Voice off';
-  voiceToggle.setAttribute('aria-pressed', String(voiceEnabled));
-  if (!voiceEnabled && 'speechSynthesis' in window) window.speechSynthesis.cancel();
-});
-
-if ('speechSynthesis' in window) {
-  loadVoices();
-  window.speechSynthesis.onvoiceschanged = loadVoices;
-} else {
-  voiceSelect.disabled = true;
-  voicePreview.disabled = true;
-}
-
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SpeechRecognition) {
-  recognition = new SpeechRecognition();
-  recognition.lang = 'en-US';
-  recognition.continuous = false;
-  recognition.interimResults = true;
-
-  recognition.onstart = () => {
-    micButton.classList.add('listening');
-    micButton.textContent = '●';
-    voiceNote.textContent = 'Listening… speak naturally, then pause.';
-  };
-
-  recognition.onresult = (event) => {
-    let transcript = '';
-    let finalTranscript = '';
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      transcript += event.results[i][0].transcript;
-      if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
-    }
-    input.value = transcript.trim();
-    if (finalTranscript.trim()) {
-      input.value = finalTranscript.trim();
-      setTimeout(() => form.requestSubmit(), 120);
-    }
-  };
-
-  recognition.onerror = (event) => {
-    voiceNote.textContent = event.error === 'not-allowed'
-      ? 'Microphone permission was blocked. Allow microphone access in your browser and try again.'
-      : `Voice input error: ${event.error}`;
-  };
-
-  recognition.onend = () => {
-    micButton.classList.remove('listening');
-    micButton.textContent = '🎙';
-    if (!voiceNote.textContent.startsWith('Microphone') && !voiceNote.textContent.startsWith('Voice input error')) {
-      voiceNote.textContent = 'Voice uses your browser microphone and speech engine. Your Gemini key stays on the server.';
-    }
-  };
-
-  micButton.addEventListener('click', () => {
-    try {
-      recognition.start();
-    } catch (_) {
-      // start() can throw if recognition is already active.
-    }
-  });
-} else {
-  micButton.disabled = true;
-  micButton.title = 'Speech recognition is not supported by this browser';
-  voiceNote.textContent = 'Voice input is not supported by this browser. Try Chrome or Edge. Spoken replies may still work.';
-}
-
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const text = input.value.trim();
-  if (!text) return;
-
-  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-  addMessage('user', text);
-  input.value = '';
-  const pending = addMessage('model', 'Thinking…');
-  sendButton.disabled = true;
-  micButton.disabled = true;
-
-  try {
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: text, history})
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Request failed');
-    pending.querySelector('p').textContent = data.reply;
-    history.push({role: 'user', text}, {role: 'model', text: data.reply});
-    speak(data.reply);
-  } catch (error) {
-    pending.querySelector('p').textContent = `Error: ${error.message}`;
-  } finally {
-    sendButton.disabled = false;
-    micButton.disabled = !SpeechRecognition;
-    input.focus();
-  }
-});
-</script>
 </body>
 </html>
