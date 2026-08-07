@@ -42,7 +42,7 @@ def _client() -> genai.Client:
 
 
 def _live_client() -> genai.Client:
-    # Ephemeral-token provisioning currently uses the v1alpha surface.
+    # Ephemeral-token provisioning currently uses the v1alpha SDK surface.
     return genai.Client(
         api_key=_api_key(),
         http_options={"api_version": "v1alpha"},
@@ -93,9 +93,16 @@ def health():
 @app.post("/api/live-token")
 def live_token():
     """Mint a one-session ephemeral token without exposing the permanent key."""
+    live_client: genai.Client | None = None
     try:
         now = dt.datetime.now(tz=dt.timezone.utc)
-        token = _live_client().auth_tokens.create(
+
+        # Keep a strong reference to the Gemini client for the entire token
+        # request. Calling _live_client().auth_tokens.create(...) inline can
+        # let the temporary Client be finalized while its Tokens module is
+        # still using the underlying HTTP client.
+        live_client = _live_client()
+        token = live_client.auth_tokens.create(
             config={
                 "uses": 1,
                 "expire_time": now + dt.timedelta(minutes=30),
@@ -106,12 +113,13 @@ def live_token():
                         "response_modalities": ["AUDIO"],
                     },
                 },
-                "http_options": {"api_version": "v1alpha"},
             }
         )
+        token_name = token.name
+
         response = jsonify(
             {
-                "token": token.name,
+                "token": token_name,
                 "model": LIVE_GEMINI_MODEL,
                 "expires_in_seconds": 1800,
             }
@@ -121,6 +129,12 @@ def live_token():
     except Exception as exc:
         app.logger.exception("Could not create Gemini Live token")
         return jsonify({"error": str(exc)}), 500
+    finally:
+        if live_client is not None:
+            try:
+                live_client.close()
+            except Exception:
+                app.logger.debug("Could not close Gemini Live provisioning client", exc_info=True)
 
 
 @app.post("/api/chat")
