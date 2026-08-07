@@ -14,6 +14,13 @@
         <h1>JARVIS Cloud</h1>
       </div>
       <div class="header-actions">
+        <label class="voice-picker" for="voice-select">
+          <span>Voice</span>
+          <select id="voice-select" aria-label="JARVIS voice">
+            <option value="">Automatic (British preferred)</option>
+          </select>
+        </label>
+        <button id="voice-preview" class="secondary compact" type="button">Test</button>
         <button id="voice-toggle" class="secondary" type="button" aria-pressed="true">Voice on</button>
         <span class="status"><i></i> Online</span>
       </div>
@@ -41,10 +48,14 @@ const messages = document.querySelector('#messages');
 const sendButton = document.querySelector('#send');
 const micButton = document.querySelector('#mic');
 const voiceToggle = document.querySelector('#voice-toggle');
+const voiceSelect = document.querySelector('#voice-select');
+const voicePreview = document.querySelector('#voice-preview');
 const voiceNote = document.querySelector('#voice-note');
 const history = [];
+const VOICE_STORAGE_KEY = 'jarvisVoiceURI';
 let voiceEnabled = true;
 let recognition = null;
+let availableVoices = [];
 
 function addMessage(role, text) {
   const article = document.createElement('article');
@@ -60,24 +71,86 @@ function addMessage(role, text) {
 }
 
 function pickBritishVoice() {
-  const voices = window.speechSynthesis?.getVoices?.() || [];
-  return voices.find(v => /^en-GB$/i.test(v.lang))
-      || voices.find(v => /^en-GB/i.test(v.lang))
-      || voices.find(v => /^en/i.test(v.lang))
+  return availableVoices.find(v => /^en-GB$/i.test(v.lang))
+      || availableVoices.find(v => /^en-GB/i.test(v.lang))
+      || availableVoices.find(v => /^en/i.test(v.lang))
+      || availableVoices[0]
       || null;
 }
 
-function speak(text) {
-  if (!voiceEnabled || !('speechSynthesis' in window) || !text) return;
+function selectedVoice() {
+  const selectedURI = voiceSelect.value;
+  if (selectedURI) {
+    const selected = availableVoices.find(v => v.voiceURI === selectedURI);
+    if (selected) return selected;
+  }
+  return pickBritishVoice();
+}
+
+function loadVoices() {
+  if (!('speechSynthesis' in window)) {
+    voiceSelect.disabled = true;
+    voicePreview.disabled = true;
+    return;
+  }
+
+  availableVoices = window.speechSynthesis.getVoices().slice().sort((a, b) => {
+    const aEnglish = /^en/i.test(a.lang) ? 0 : 1;
+    const bEnglish = /^en/i.test(b.lang) ? 0 : 1;
+    return aEnglish - bEnglish || a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name);
+  });
+
+  const saved = localStorage.getItem(VOICE_STORAGE_KEY) || '';
+  const previous = voiceSelect.value || saved;
+  voiceSelect.innerHTML = '<option value="">Automatic (British preferred)</option>';
+
+  for (const voice of availableVoices) {
+    const option = document.createElement('option');
+    option.value = voice.voiceURI;
+    option.textContent = `${voice.name} — ${voice.lang}${voice.default ? ' (default)' : ''}`;
+    voiceSelect.appendChild(option);
+  }
+
+  if (previous && availableVoices.some(v => v.voiceURI === previous)) {
+    voiceSelect.value = previous;
+  } else {
+    voiceSelect.value = '';
+  }
+}
+
+function speak(text, force = false) {
+  if ((!voiceEnabled && !force) || !('speechSynthesis' in window) || !text) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'en-GB';
+  const voice = selectedVoice();
+  if (voice) {
+    utterance.voice = voice;
+    utterance.lang = voice.lang || 'en-GB';
+  } else {
+    utterance.lang = 'en-GB';
+  }
   utterance.rate = 0.96;
   utterance.pitch = 0.9;
-  const voice = pickBritishVoice();
-  if (voice) utterance.voice = voice;
   window.speechSynthesis.speak(utterance);
 }
+
+voiceSelect.addEventListener('change', () => {
+  if (voiceSelect.value) {
+    localStorage.setItem(VOICE_STORAGE_KEY, voiceSelect.value);
+  } else {
+    localStorage.removeItem(VOICE_STORAGE_KEY);
+  }
+  const voice = selectedVoice();
+  voiceNote.textContent = voice
+    ? `Selected voice: ${voice.name} (${voice.lang}). Saved for this browser.`
+    : 'Voice selection is set to automatic.';
+});
+
+voicePreview.addEventListener('click', () => {
+  const wasEnabled = voiceEnabled;
+  speak('Good evening, sir. JARVIS voice systems are online.', true);
+  if (!wasEnabled) voiceNote.textContent = 'Voice preview played. Spoken replies are still turned off.';
+});
 
 voiceToggle.addEventListener('click', () => {
   voiceEnabled = !voiceEnabled;
@@ -85,6 +158,14 @@ voiceToggle.addEventListener('click', () => {
   voiceToggle.setAttribute('aria-pressed', String(voiceEnabled));
   if (!voiceEnabled && 'speechSynthesis' in window) window.speechSynthesis.cancel();
 });
+
+if ('speechSynthesis' in window) {
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+} else {
+  voiceSelect.disabled = true;
+  voicePreview.disabled = true;
+}
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SpeechRecognition) {
