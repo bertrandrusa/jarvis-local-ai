@@ -13,7 +13,10 @@
         <p class="eyebrow">GEMINI-POWERED ASSISTANT</p>
         <h1>JARVIS Cloud</h1>
       </div>
-      <span class="status"><i></i> Online</span>
+      <div class="header-actions">
+        <button id="voice-toggle" class="secondary" type="button" aria-pressed="true">Voice on</button>
+        <span class="status"><i></i> Online</span>
+      </div>
     </header>
 
     <section id="messages" class="messages" aria-live="polite">
@@ -24,17 +27,24 @@
     </section>
 
     <form id="chat-form">
+      <button id="mic" class="mic" type="button" aria-label="Speak to JARVIS" title="Speak to JARVIS">🎙</button>
       <textarea id="message" rows="1" placeholder="Ask JARVIS anything…" required></textarea>
-      <button type="submit">Send</button>
+      <button id="send" type="submit">Send</button>
     </form>
-    <p class="note">Your Gemini key stays on the server and is never sent to the browser.</p>
+    <p id="voice-note" class="note">Voice uses your browser microphone and speech engine. Your Gemini key stays on the server.</p>
   </main>
 
 <script>
 const form = document.querySelector('#chat-form');
 const input = document.querySelector('#message');
 const messages = document.querySelector('#messages');
+const sendButton = document.querySelector('#send');
+const micButton = document.querySelector('#mic');
+const voiceToggle = document.querySelector('#voice-toggle');
+const voiceNote = document.querySelector('#voice-note');
 const history = [];
+let voiceEnabled = true;
+let recognition = null;
 
 function addMessage(role, text) {
   const article = document.createElement('article');
@@ -49,15 +59,98 @@ function addMessage(role, text) {
   return article;
 }
 
+function pickBritishVoice() {
+  const voices = window.speechSynthesis?.getVoices?.() || [];
+  return voices.find(v => /^en-GB$/i.test(v.lang))
+      || voices.find(v => /^en-GB/i.test(v.lang))
+      || voices.find(v => /^en/i.test(v.lang))
+      || null;
+}
+
+function speak(text) {
+  if (!voiceEnabled || !('speechSynthesis' in window) || !text) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'en-GB';
+  utterance.rate = 0.96;
+  utterance.pitch = 0.9;
+  const voice = pickBritishVoice();
+  if (voice) utterance.voice = voice;
+  window.speechSynthesis.speak(utterance);
+}
+
+voiceToggle.addEventListener('click', () => {
+  voiceEnabled = !voiceEnabled;
+  voiceToggle.textContent = voiceEnabled ? 'Voice on' : 'Voice off';
+  voiceToggle.setAttribute('aria-pressed', String(voiceEnabled));
+  if (!voiceEnabled && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+});
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  recognition.onstart = () => {
+    micButton.classList.add('listening');
+    micButton.textContent = '●';
+    voiceNote.textContent = 'Listening… speak naturally, then pause.';
+  };
+
+  recognition.onresult = (event) => {
+    let transcript = '';
+    let finalTranscript = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+      if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+    }
+    input.value = transcript.trim();
+    if (finalTranscript.trim()) {
+      input.value = finalTranscript.trim();
+      setTimeout(() => form.requestSubmit(), 120);
+    }
+  };
+
+  recognition.onerror = (event) => {
+    voiceNote.textContent = event.error === 'not-allowed'
+      ? 'Microphone permission was blocked. Allow microphone access in your browser and try again.'
+      : `Voice input error: ${event.error}`;
+  };
+
+  recognition.onend = () => {
+    micButton.classList.remove('listening');
+    micButton.textContent = '🎙';
+    if (!voiceNote.textContent.startsWith('Microphone') && !voiceNote.textContent.startsWith('Voice input error')) {
+      voiceNote.textContent = 'Voice uses your browser microphone and speech engine. Your Gemini key stays on the server.';
+    }
+  };
+
+  micButton.addEventListener('click', () => {
+    try {
+      recognition.start();
+    } catch (_) {
+      // start() can throw if recognition is already active.
+    }
+  });
+} else {
+  micButton.disabled = true;
+  micButton.title = 'Speech recognition is not supported by this browser';
+  voiceNote.textContent = 'Voice input is not supported by this browser. Try Chrome or Edge. Spoken replies may still work.';
+}
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = input.value.trim();
   if (!text) return;
 
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   addMessage('user', text);
   input.value = '';
   const pending = addMessage('model', 'Thinking…');
-  form.querySelector('button').disabled = true;
+  sendButton.disabled = true;
+  micButton.disabled = true;
 
   try {
     const response = await fetch('/api/chat', {
@@ -69,10 +162,12 @@ form.addEventListener('submit', async (event) => {
     if (!response.ok) throw new Error(data.error || 'Request failed');
     pending.querySelector('p').textContent = data.reply;
     history.push({role: 'user', text}, {role: 'model', text: data.reply});
+    speak(data.reply);
   } catch (error) {
     pending.querySelector('p').textContent = `Error: ${error.message}`;
   } finally {
-    form.querySelector('button').disabled = false;
+    sendButton.disabled = false;
+    micButton.disabled = !SpeechRecognition;
     input.focus();
   }
 });
