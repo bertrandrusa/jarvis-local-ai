@@ -2,6 +2,12 @@
 
 A cloud-hosted personal assistant powered by Google Gemini, with real-time native voice through the Gemini Live API.
 
+## 🌐 Live Demo
+
+**Try JARVIS here:** https://jarvis-gemini-cloud.onrender.com/
+
+> The app is hosted on Render. Allow microphone access in your browser to use Gemini Live voice mode.
+
 ## What runs where
 
 ```text
