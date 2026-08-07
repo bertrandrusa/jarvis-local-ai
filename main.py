@@ -60,14 +60,18 @@ def chat():
 
     model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     history = _normalise_history(payload.get("history"))
+    contents = [*history, {"role": "user", "parts": [{"text": message}]}]
 
     try:
-        conversation = _client().chats.create(
+        # Keep the client alive for the entire request. Creating a chat from a
+        # temporary client can allow the underlying HTTP client to be closed
+        # before send_message() runs.
+        client = _client()
+        response = client.models.generate_content(
             model=model,
+            contents=contents,
             config={"system_instruction": SYSTEM_INSTRUCTION},
-            history=history,
         )
-        response = conversation.send_message(message)
         text = (response.text or "").strip()
         if not text:
             raise RuntimeError("Gemini returned an empty response.")
