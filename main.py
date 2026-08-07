@@ -1,7 +1,8 @@
-"""JARVIS Cloud: a lightweight Gemini-powered web assistant."""
+"""JARVIS Cloud: Gemini text fallback plus Gemini Live native audio."""
 
 from __future__ import annotations
 
+import datetime as dt
 import os
 from typing import Any
 
@@ -12,10 +13,12 @@ SYSTEM_INSTRUCTION = (
     "You are JARVIS, Bertrand's polished digital assistant. "
     "Use calm British formality, be concise and practical, and address Bertrand "
     "as 'sir' when natural. Use occasional dry wit without becoming rude. "
-    "Prioritise privacy, safety, accuracy, and useful next steps."
+    "Prioritise privacy, safety, accuracy, and useful next steps. "
+    "For spoken replies, sound composed, natural, confident, and conversational."
 )
 
 DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
+LIVE_GEMINI_MODEL = "gemini-3.1-flash-live-preview"
 RETIRED_MODEL_REPLACEMENTS = {
     "gemini-2.0-flash": DEFAULT_GEMINI_MODEL,
     "gemini-2.0-flash-001": DEFAULT_GEMINI_MODEL,
@@ -27,15 +30,27 @@ RETIRED_MODEL_REPLACEMENTS = {
 app = Flask(__name__)
 
 
-def _client() -> genai.Client:
+def _api_key() -> str:
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not configured on the server.")
-    return genai.Client(api_key=api_key)
+    return api_key
+
+
+def _client() -> genai.Client:
+    return genai.Client(api_key=_api_key())
+
+
+def _live_client() -> genai.Client:
+    # Ephemeral-token provisioning currently uses the v1alpha surface.
+    return genai.Client(
+        api_key=_api_key(),
+        http_options={"api_version": "v1alpha"},
+    )
 
 
 def _model_name() -> str:
-    """Return a supported Gemini model, upgrading retired configured values."""
+    """Return a supported text model, upgrading retired configured values."""
     configured = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL).strip()
     if not configured:
         return DEFAULT_GEMINI_MODEL
@@ -65,11 +80,52 @@ def index():
 
 @app.get("/health")
 def health():
-    return jsonify({"status": "ok", "provider": "gemini", "model": _model_name()})
+    return jsonify(
+        {
+            "status": "ok",
+            "provider": "gemini",
+            "text_model": _model_name(),
+            "live_model": LIVE_GEMINI_MODEL,
+        }
+    )
+
+
+@app.post("/api/live-token")
+def live_token():
+    """Mint a one-session ephemeral token without exposing the permanent key."""
+    try:
+        now = dt.datetime.now(tz=dt.timezone.utc)
+        token = _live_client().auth_tokens.create(
+            config={
+                "uses": 1,
+                "expire_time": now + dt.timedelta(minutes=30),
+                "new_session_expire_time": now + dt.timedelta(minutes=1),
+                "live_connect_constraints": {
+                    "model": LIVE_GEMINI_MODEL,
+                    "config": {
+                        "response_modalities": ["AUDIO"],
+                    },
+                },
+                "http_options": {"api_version": "v1alpha"},
+            }
+        )
+        response = jsonify(
+            {
+                "token": token.name,
+                "model": LIVE_GEMINI_MODEL,
+                "expires_in_seconds": 1800,
+            }
+        )
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    except Exception as exc:
+        app.logger.exception("Could not create Gemini Live token")
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.post("/api/chat")
 def chat():
+    """Text-only fallback used when a Live connection cannot be established."""
     payload = request.get_json(silent=True) or {}
     message = str(payload.get("message", "")).strip()
     if not message:
@@ -80,9 +136,6 @@ def chat():
     contents = [*history, {"role": "user", "parts": [{"text": message}]}]
 
     try:
-        # Keep the client alive for the entire request. Creating a chat from a
-        # temporary client can allow the underlying HTTP client to be closed
-        # before the request is sent.
         client = _client()
         response = client.models.generate_content(
             model=model,
@@ -92,7 +145,7 @@ def chat():
         text = (response.text or "").strip()
         if not text:
             raise RuntimeError("Gemini returned an empty response.")
-        return jsonify({"reply": text, "model": model})
+        return jsonify({"reply": text, "model": model, "mode": "text-fallback"})
     except Exception as exc:
         app.logger.exception("Gemini request failed")
         return jsonify({"error": str(exc)}), 500
